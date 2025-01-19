@@ -35,6 +35,12 @@ const toggleMenu = () => {
             About
           </router-link>
           <router-link
+            to="/ai-recommendations"
+            class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out"
+          >
+            AI Recommendations
+          </router-link>
+          <router-link
             to="/recipes/create"
             class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition duration-150 ease-in-out"
           >
@@ -93,6 +99,12 @@ const toggleMenu = () => {
           class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
         >
           About
+        </router-link>
+        <router-link
+          to="/ai-recommendations"
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
+        >
+          AI Recommendations
         </router-link>
         <router-link
           to="/recipes/create"
