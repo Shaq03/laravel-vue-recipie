@@ -6,13 +6,26 @@ use App\Http\Controllers\Controller;
 use App\Models\Recipe;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class RecipeController extends Controller
 {
     public function index(): JsonResponse
     {
-        $recipes = Recipe::latest()->get();
-        return response()->json($recipes);
+        Log::info('Recipe index endpoint hit');
+        try {
+            $recipes = Recipe::latest()->get();
+            Log::info('Recipes retrieved successfully', [
+                'count' => $recipes->count(),
+                'recipes' => $recipes->toArray()
+            ]);
+            return response()->json($recipes);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving recipes', [
+                'error' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Failed to retrieve recipes'], 500);
+        }
     }
 
     public function store(Request $request): JsonResponse

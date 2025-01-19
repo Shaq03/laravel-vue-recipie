@@ -9,7 +9,7 @@ const error = ref(null);
 
 const fetchRecipes = async () => {
   try {
-    const response = await axios.get('/api/v1/recipes');
+    const response = await axios.get('/v1/recipes');
     recipes.value = response.data;
   } catch (err) {
     error.value = 'Failed to load recipes. Please try again later.';
@@ -104,6 +104,16 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Add this button after the title section -->
+      <div class="mt-6">
+        <router-link
+          to="/recipes/create"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Add New Recipe
+        </router-link>
       </div>
     </div>
   </div>

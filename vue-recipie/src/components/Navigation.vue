@@ -34,12 +34,12 @@ const toggleMenu = () => {
           >
             About
           </router-link>
-          <button
-            disabled
-            class="bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium cursor-not-allowed opacity-50 transition duration-150 ease-in-out"
+          <router-link
+            to="/recipes/create"
+            class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition duration-150 ease-in-out"
           >
-            Sign Up
-          </button>
+            Add Recipe
+          </router-link>
         </div>
 
         <!-- Mobile menu button -->
@@ -94,12 +94,12 @@ const toggleMenu = () => {
         >
           About
         </router-link>
-        <button
-          disabled
-          class="block w-full px-3 py-2 rounded-md text-base font-medium text-white bg-gray-400 opacity-50 cursor-not-allowed transition duration-150 ease-in-out"
+        <router-link
+          to="/recipes/create"
+          class="block w-full px-3 py-2 rounded-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out"
         >
-          Sign Up
-        </button>
+          Add Recipe
+        </router-link>
       </div>
     </div>
   </nav>
