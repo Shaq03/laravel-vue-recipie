@@ -1,26 +1,16 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import { onMounted, computed } from 'vue';
+import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
 
-const recipes = ref([]);
-const loading = ref(true);
-const error = ref(null);
+const store = useStore();
 
-const fetchRecipes = async () => {
-  try {
-    const response = await axios.get('/api/v1/recipes');
-    recipes.value = response.data;
-  } catch (err) {
-    error.value = 'Failed to load recipes. Please try again later.';
-    console.error('Error fetching recipes:', err);
-  } finally {
-    loading.value = false;
-  }
-};
+const recipes = computed(() => store.getters.allRecipes);
+const loading = computed(() => store.state.loading);
+const error = computed(() => store.state.error);
 
-onMounted(() => {
-  fetchRecipes();
+onMounted(async () => {
+  await store.dispatch('fetchRecipes');
 });
 </script>
 
@@ -104,6 +94,16 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Add this button after the title section -->
+      <div class="mt-6">
+        <router-link
+          to="/recipes/create"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Add New Recipe
+        </router-link>
       </div>
     </div>
   </div>
