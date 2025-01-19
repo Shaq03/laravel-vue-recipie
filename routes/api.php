@@ -2,12 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\RecipeController;
-use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AIRecommendationController;
-
-// Public routes
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register', [AuthController::class, 'register']);
+use App\Http\Controllers\MLRecommendationController;
 
 // Recipe routes
 Route::prefix('v1')->group(function () {
@@ -23,4 +19,5 @@ Route::middleware('auth.token')->prefix('v1')->group(function () {
     // Add protected routes here
 });
 
-Route::post('/v1/ai/recommendations', [AIRecommendationController::class, 'getRecommendations']); 
+Route::post('/v1/ai/recommendations', [AIRecommendationController::class, 'getRecommendations']);
+Route::get('/v1/ml/recipes/{recipe}/similar', [MLRecommendationController::class, 'getSimilarRecipes']); 

@@ -93,6 +93,16 @@ onMounted(async () => {
               </span>
             </div>
           </div>
+
+          <!-- Add this inside your recipe card template -->
+          <div class="mt-4">
+            <router-link
+              :to="{ name: 'recipes.similar', params: { recipeId: recipe.id }}"
+              class="text-indigo-600 hover:text-indigo-500 text-sm"
+            >
+              Find Similar Recipes
+            </router-link>
+          </div>
         </div>
       </div>
 
