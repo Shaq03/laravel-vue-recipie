@@ -1,26 +1,16 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import { onMounted, computed } from 'vue';
+import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
 
-const recipes = ref([]);
-const loading = ref(true);
-const error = ref(null);
+const store = useStore();
 
-const fetchRecipes = async () => {
-  try {
-    const response = await axios.get('/v1/recipes');
-    recipes.value = response.data;
-  } catch (err) {
-    error.value = 'Failed to load recipes. Please try again later.';
-    console.error('Error fetching recipes:', err);
-  } finally {
-    loading.value = false;
-  }
-};
+const recipes = computed(() => store.getters.allRecipes);
+const loading = computed(() => store.state.loading);
+const error = computed(() => store.state.error);
 
-onMounted(() => {
-  fetchRecipes();
+onMounted(async () => {
+  await store.dispatch('fetchRecipes');
 });
 </script>
 

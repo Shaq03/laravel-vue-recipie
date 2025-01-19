@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
+import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
 
 const router = useRouter();
+const store = useStore();
 const loading = ref(false);
 const error = ref(null);
 
@@ -40,7 +41,7 @@ const handleSubmit = async () => {
   error.value = null;
 
   try {
-    await axios.post('/v1/recipes', recipe.value);
+    await store.dispatch('createRecipe', recipe.value);
     router.push('/recipes');
   } catch (err) {
     error.value = err.response?.data?.message || 'Failed to create recipe';
@@ -89,12 +90,12 @@ const handleSubmit = async () => {
             <div>
               <label for="cooking_time" class="block text-sm font-medium text-gray-700">Cooking Time (minutes)</label>
               <input
-                type="number"
+                type="text"
                 id="cooking_time"
                 v-model="recipe.cooking_time"
                 required
-                min="1"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                placeholder="e.g., 30 minutes"
               />
             </div>
 
