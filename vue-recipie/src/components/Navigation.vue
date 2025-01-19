@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { Home, ChefHat, BookOpen, Info } from 'lucide-vue-next';
 
 const isMenuOpen = ref(false);
 
@@ -14,31 +15,43 @@ const toggleMenu = () => {
       <div class="flex justify-between h-16">
         <div class="flex">
           <div class="flex-shrink-0 flex items-center">
-            <router-link to="/" class="text-2xl font-bold text-indigo-600 hover:text-indigo-700 transition duration-150 ease-in-out">
-              Recipe Hub
-            </router-link>
+            <ChefHat class="h-8 w-8 text-indigo-600" />
           </div>
         </div>
 
         <!-- Desktop Menu -->
         <div class="hidden sm:flex sm:items-center sm:space-x-4">
           <router-link
-            to="/recipes"
-            class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out"
+            to="/"
+            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+            :class="[$route.name === 'home' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
           >
+            <Home class="h-4 w-4 mr-2" />
+            Home
+          </router-link>
+          <router-link
+            to="/recipes"
+            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+            :class="[$route.name === 'recipes' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
+          >
+            <BookOpen class="h-4 w-4 mr-2" />
             Recipes
           </router-link>
           <router-link
-            to="/about"
-            class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out"
+            to="/ai-recommendations"
+            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+            :class="[$route.name === 'ai-recommendations' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
           >
-            About
+            <ChefHat class="h-4 w-4 mr-2" />
+            AI Recommendations
           </router-link>
           <router-link
-            to="/ai-recommendations"
-            class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out"
+            to="/about"
+            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+            :class="[$route.name === 'about' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
           >
-            AI Recommendations
+            <Info class="h-4 w-4 mr-2" />
+            About
           </router-link>
           <router-link
             to="/recipes/create"
@@ -89,22 +102,32 @@ const toggleMenu = () => {
     >
       <div class="px-2 pt-2 pb-3 space-y-1">
         <router-link
+          to="/"
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
+        >
+          <Home class="h-4 w-4 mr-2" />
+          Home
+        </router-link>
+        <router-link
           to="/recipes"
           class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
         >
+          <BookOpen class="h-4 w-4 mr-2" />
           Recipes
-        </router-link>
-        <router-link
-          to="/about"
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
-        >
-          About
         </router-link>
         <router-link
           to="/ai-recommendations"
           class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
         >
+          <ChefHat class="h-4 w-4 mr-2" />
           AI Recommendations
+        </router-link>
+        <router-link
+          to="/about"
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
+        >
+          <Info class="h-4 w-4 mr-2" />
+          About
         </router-link>
         <router-link
           to="/recipes/create"
