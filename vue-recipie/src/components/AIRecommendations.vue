@@ -58,6 +58,12 @@ const removeIngredient = (index) => {
   selectedIngredients.value.splice(index, 1);
 };
 
+const generateUniqueId = (recipe) => {
+  // Create a unique ID based on the recipe content
+  const content = `${recipe.title}-${recipe.ingredients.join('-')}-${recipe.instructions.join('-')}`;
+  return `ai-${btoa(content).replace(/[/+=]/g, '')}`;
+};
+
 const getRecommendations = async () => {
   if (selectedIngredients.value.length === 0) {
     error.value = 'Please add at least one ingredient';
@@ -87,7 +93,11 @@ const getRecommendations = async () => {
     }
 
     const data = await response.json();
-    recommendations.value = data.recipes;
+    // Add unique IDs to each recipe before setting recommendations
+    recommendations.value = data.recipes.map(recipe => ({
+      ...recipe,
+      id: generateUniqueId(recipe)
+    }));
   } catch (err) {
     error.value = 'Unable to get recommendations. Please try again with different ingredients.';
   } finally {
