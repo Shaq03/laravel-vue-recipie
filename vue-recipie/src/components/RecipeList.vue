@@ -2,13 +2,15 @@
 import { ref, computed, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
-import { Clock, Users, ChefHat, PlusCircle, Utensils, Search, Filter } from 'lucide-vue-next';
+import { Clock, Users, ChefHat, PlusCircle, Utensils, Search, Filter, Star } from 'lucide-vue-next';
 
 const store = useStore();
 const searchQuery = ref('');
 const selectedDifficulty = ref('all');
 const currentPage = ref(1);
 const itemsPerPage = 9;
+const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
+const toggleFavorite = (recipe) => store.dispatch('toggleFavorite', recipe);
 
 // Filter options
 const difficulties = ['all', 'easy', 'medium', 'hard'];
@@ -185,6 +187,15 @@ onMounted(async () => {
             >
               <ChefHat class="w-16 h-16 text-gray-400" />
             </div>
+            <button
+    @click.prevent="toggleFavorite(recipe)"
+    class="absolute top-4 right-4 p-2 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors"
+  >
+    <Star 
+      class="w-6 h-6" 
+      :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
+    />
+  </button>
           </div>
           
           <div class="p-6">

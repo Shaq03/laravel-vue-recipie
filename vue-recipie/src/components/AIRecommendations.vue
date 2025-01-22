@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useStore } from 'vuex';
-import { ChefHat, Search, Loader, X } from 'lucide-vue-next';
+import { ChefHat, Search, Loader, X, Star } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
 
 const store = useStore();
@@ -10,6 +10,8 @@ const selectedIngredients = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const recommendations = ref([]);
+const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
+const toggleFavorite = (recipe) => store.dispatch('toggleFavorite', recipe);
 
 const validateIngredient = (ingredient) => {
   // Basic validation rules
@@ -182,7 +184,18 @@ const handleKeydown = (event) => {
             class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 ease-in-out"
           >
             <div class="p-6">
+              <div class="flex justify-between items-start mb-2">
               <h3 class="text-2xl font-semibold text-gray-900 mb-2">{{ recipe.title }}</h3>
+              <button
+      @click="toggleFavorite(recipe)"
+      class="p-2 hover:bg-gray-100 rounded-full transition-colors"
+    >
+      <Star 
+        class="w-6 h-6" 
+        :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
+      />
+    </button>
+  </div>
               <p class="text-gray-600 mb-4">{{ recipe.description }}</p>
               
               <div class="space-y-4">
