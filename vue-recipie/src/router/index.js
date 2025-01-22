@@ -31,6 +31,11 @@ const routes = [
     path: '/recipes/:recipeId/similar',
     name: 'recipes.similar',
     component: () => import('../components/MLRecommendations.vue')
+  },
+  {
+    path: '/favorites',
+    name: 'favorites',
+    component: () => import('../components/Favorites.vue')
   }
 ]
 

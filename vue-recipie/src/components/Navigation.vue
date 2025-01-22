@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { Home, ChefHat, BookOpen, Info } from 'lucide-vue-next';
+import { Home, ChefHat, BookOpen, Info, Star } from 'lucide-vue-next';
 
 const isMenuOpen = ref(false);
 
@@ -30,6 +30,14 @@ const toggleMenu = () => {
             Home
           </router-link>
           <router-link
+            to="/about"
+            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+            :class="[$route.name === 'about' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
+          >
+            <Info class="h-4 w-4 mr-2" />
+            About
+          </router-link>
+          <router-link
             to="/recipes"
             class="inline-flex items-center px-1 pt-1 text-sm font-medium"
             :class="[$route.name === 'recipes' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
@@ -46,13 +54,13 @@ const toggleMenu = () => {
             AI Recommendations
           </router-link>
           <router-link
-            to="/about"
-            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
-            :class="[$route.name === 'about' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
-          >
-            <Info class="h-4 w-4 mr-2" />
-            About
-          </router-link>
+  to="/favorites"
+  class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+  :class="[$route.name === 'favorites' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
+>
+  <Star class="h-4 w-4 mr-2" />
+  Favorites
+</router-link>
           <router-link
             to="/recipes/create"
             class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition duration-150 ease-in-out"
@@ -109,6 +117,13 @@ const toggleMenu = () => {
           Home
         </router-link>
         <router-link
+          to="/about"
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
+        >
+          <Info class="h-4 w-4 mr-2" />
+          About
+        </router-link>
+        <router-link
           to="/recipes"
           class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
         >
@@ -123,12 +138,12 @@ const toggleMenu = () => {
           AI Recommendations
         </router-link>
         <router-link
-          to="/about"
-          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
-        >
-          <Info class="h-4 w-4 mr-2" />
-          About
-        </router-link>
+  to="/favorites"
+  class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
+>
+  <Star class="h-4 w-4 mr-2" />
+  Favorites
+</router-link>
         <router-link
           to="/recipes/create"
           class="block w-full px-3 py-2 rounded-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out"

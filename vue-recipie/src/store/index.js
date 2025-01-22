@@ -10,12 +10,17 @@ export default createStore({
     token: localStorage.getItem('token') || null,
     recipes: [],
     loading: false,
-    error: null
+    error: null,
+    favorites: JSON.parse(localStorage.getItem('favorites')) || [],
   },
   
   getters: {
     allRecipes: state => state.recipes,
     isAuthenticated: state => !!state.token,
+    isFavorite: (state) => (recipeId) => {
+      return state.favorites.some(fav => fav.id === recipeId);
+    },
+    allFavorites: (state) => state.favorites,
   },
   
   mutations: {
@@ -36,7 +41,17 @@ export default createStore({
     },
     SET_TOKEN(state, token) {
       state.token = token;
-    }
+    },
+    TOGGLE_FAVORITE(state, recipe) {
+      const index = state.favorites.findIndex(fav => fav.id === recipe.id);
+      if (index === -1) {
+        state.favorites.push(recipe);
+      } else {
+        state.favorites.splice(index, 1);
+      }
+      // Save to localStorage
+      localStorage.setItem('favorites', JSON.stringify(state.favorites));
+    },
   },
   
   actions: {
@@ -46,7 +61,9 @@ export default createStore({
         axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
       }
     },
-
+    toggleFavorite({ commit }, recipe) {
+      commit('TOGGLE_FAVORITE', recipe);
+    },
     async fetchRecipes({ commit }) {
       commit('SET_LOADING', true);
       commit('SET_ERROR', null);
