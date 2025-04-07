@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { Home, ChefHat, BookOpen, Info, Star } from 'lucide-vue-next';
+import { Home, ChefHat, BookOpen, Info, Star, Globe } from 'lucide-vue-next';
 
 const isMenuOpen = ref(false);
 
@@ -52,6 +52,14 @@ const toggleMenu = () => {
           >
             <ChefHat class="h-4 w-4 mr-2" />
             AI Recommendations
+          </router-link>
+          <router-link
+            to="/web-recipes"
+            class="inline-flex items-center px-1 pt-1 text-sm font-medium"
+            :class="[$route.name === 'web-recipes' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent']"
+          >
+            <Globe class="h-4 w-4 mr-2" />
+            Web Recipes
           </router-link>
           <router-link
   to="/favorites"
@@ -136,6 +144,13 @@ const toggleMenu = () => {
         >
           <ChefHat class="h-4 w-4 mr-2" />
           AI Recommendations
+        </router-link>
+        <router-link
+          to="/web-recipes"
+          class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition duration-150 ease-in-out"
+        >
+          <Globe class="h-4 w-4 mr-2" />
+          Web Recipes
         </router-link>
         <router-link
   to="/favorites"

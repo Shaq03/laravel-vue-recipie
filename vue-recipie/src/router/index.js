@@ -28,6 +28,11 @@ const routes = [
     component: () => import('../components/AIRecommendations.vue')
   },
   {
+    path: '/web-recipes',
+    name: 'web-recipes',
+    component: () => import('../components/WebRecipeSearch.vue')
+  },
+  {
     path: '/recipes/:recipeId/similar',
     name: 'recipes.similar',
     component: () => import('../components/MLRecommendations.vue')
