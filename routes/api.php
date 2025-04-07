@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\RecipeController;
 use App\Http\Controllers\AIRecommendationController;
 use App\Http\Controllers\MLRecommendationController;
+use App\Http\Controllers\WebRecipeController;
 
 // Recipe routes
 Route::prefix('v1')->group(function () {
@@ -20,4 +21,8 @@ Route::middleware('auth.token')->prefix('v1')->group(function () {
 });
 
 Route::post('/v1/ai/recommendations', [AIRecommendationController::class, 'getRecommendations']);
-Route::get('/v1/ml/recipes/{recipe}/similar', [MLRecommendationController::class, 'getSimilarRecipes']); 
+Route::get('/v1/ml/recipes/{recipe}/similar', [MLRecommendationController::class, 'getSimilarRecipes']);
+
+// Web recipe routes
+Route::post('/v1/web/recipes/search', [WebRecipeController::class, 'searchByIngredients']);
+Route::post('/v1/web/recipes/save', [WebRecipeController::class, 'saveRecipe']); 
