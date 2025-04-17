@@ -42,6 +42,9 @@ export default createStore({
     SET_TOKEN(state, token) {
       state.token = token;
     },
+    SET_FAVORITES(state, favorites) {
+      state.favorites = favorites;
+    },
     TOGGLE_FAVORITE(state, recipe) {
       const index = state.favorites.findIndex(fav => fav.id === recipe.id);
       if (index === -1) {

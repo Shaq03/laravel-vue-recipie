@@ -142,32 +142,30 @@ const handleKeyDown = (event) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100">
     <Navigation />
     
-    <main class="container mx-auto px-4 py-8">
-      <div class="flex items-center mb-8">
-        <ChefHat class="w-8 h-8 text-green-600 mr-3" />
-        <h1 class="text-3xl font-bold text-gray-800">Find Recipes Online</h1>
+    <div class="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <ChefHat class="h-16 w-16 text-indigo-600 mx-auto mb-4" />
+        <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl">Find Online Recipies</h1>
       </div>
-      
-      <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+
+      <div class="bg-white rounded-xl shadow-lg p-6 mt-8">
         <h2 class="text-xl font-semibold mb-4 text-gray-700">Enter Your Ingredients</h2>
         
         <div class="mb-6">
           <div class="flex">
-            <div class="relative flex-grow">
-              <input 
-                v-model="currentIngredient" 
-                @keydown="handleKeyDown"
-                type="text" 
-                class="w-full border border-gray-300 rounded-l-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="Type an ingredient and press Enter"
-              />
-            </div>
+            <input 
+              v-model="currentIngredient" 
+              @keydown="handleKeyDown"
+              type="text" 
+              class="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              placeholder="Type an ingredient and press Enter"
+            />
             <button 
               @click="addIngredient" 
-              class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-r-lg transition duration-200 flex items-center"
+              class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-r-lg transition duration-200"
             >
               <span>Add</span>
             </button>
@@ -242,7 +240,7 @@ const handleKeyDown = (event) => {
           <div 
             v-for="(recipe, index) in recipes" 
             :key="index"
-            class="bg-white rounded-lg shadow-md overflow-hidden transition duration-200 hover:shadow-lg"
+            class="bg-white rounded-xl shadow-lg overflow-hidden transition duration-200 hover:shadow-xl hover:-translate-y-1"
           >
             <div v-if="recipe.image_url" class="h-48 overflow-hidden">
               <img :src="recipe.image_url" :alt="recipe.title" class="w-full h-full object-cover" />
@@ -253,73 +251,67 @@ const handleKeyDown = (event) => {
             
             <div class="p-6">
               <h3 class="text-xl font-bold mb-2 text-gray-800">{{ recipe.title }}</h3>
-              
-              <p v-if="recipe.description" class="text-gray-600 mb-4 line-clamp-2">
-                {{ recipe.description }}
-              </p>
+              <p class="text-gray-600 mb-4 line-clamp-2">{{ recipe.description }}</p>
               
               <div class="flex justify-between text-sm text-gray-500 mb-4">
-                <div class="flex items-center">
-                  <span>{{ recipe.cooking_time }}</span>
-                </div>
-                <div class="flex items-center">
-                  <span>{{ recipe.servings }} servings</span>
-                </div>
-                <div class="flex items-center">
-                  <span class="capitalize">{{ recipe.difficulty }}</span>
-                </div>
+                <span class="flex items-center">
+                  <Clock class="w-5 h-5 mr-1" />
+                  {{ recipe.cooking_time }} mins
+                </span>
+                <span class="flex items-center">
+                  <Users class="w-5 h-5 mr-1" />
+                  {{ recipe.servings }} servings
+                </span>
+                <span class="capitalize px-3 py-1 rounded-full text-xs font-medium" :class="{
+                  'bg-green-100 text-green-800': recipe.difficulty === 'easy',
+                  'bg-yellow-100 text-yellow-800': recipe.difficulty === 'medium',
+                  'bg-red-100 text-red-800': recipe.difficulty === 'hard'
+                }">
+                  {{ recipe.difficulty }}
+                </span>
               </div>
-              
-              <div class="mb-4">
-                <h4 class="font-semibold mb-2 text-gray-700">Ingredients:</h4>
-                <ul class="list-disc list-inside">
-                  <li v-for="(ingredient, i) in recipe.ingredients.slice(0, 5)" :key="i" class="text-sm text-gray-600">
-                    {{ ingredient }}
-                  </li>
-                  <li v-if="recipe.ingredients.length > 5" class="text-sm text-gray-500">
-                    And {{ recipe.ingredients.length - 5 }} more...
-                  </li>
-                </ul>
-              </div>
-              
-              <div class="flex justify-between">
-                <a 
-                  v-if="recipe.source_url" 
-                  :href="recipe.source_url" 
-                  target="_blank"
-                  class="text-blue-600 hover:text-blue-800 flex items-center"
+
+              <div v-if="recipe.dietary_restrictions && recipe.dietary_restrictions.length > 0" class="flex flex-wrap gap-2 mb-4">
+                <span
+                  v-for="restriction in recipe.dietary_restrictions"
+                  :key="restriction"
+                  class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium"
                 >
-                  <ExternalLink class="w-4 h-4 mr-1" />
-                  <span>View Original</span>
-                </a>
-                
+                  {{ restriction.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') }}
+                </span>
+              </div>
+
+              <div class="flex gap-2">
                 <button 
-                  @click="() => saveRecipe(recipe)" 
-                  class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center"
+                  @click="saveRecipe(recipe)" 
+                  class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition duration-200"
+                  :class="{ 'bg-orange-100 text-orange-800': isFavorite(recipe) }"
                 >
-                  <Save class="w-4 h-4 mr-1" />
-                  <span>Save Recipe</span>
+                  <Star class="w-5 h-5" />
+                  <span>{{ isFavorite(recipe) ? 'Saved' : 'Save' }}</span>
                 </button>
+                <a 
+                  :href="recipe.source_url" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition duration-200"
+                >
+                  <ExternalLink class="w-5 h-5" />
+                  <span>View Recipe</span>
+                </a>
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      <!-- No results message -->
-      <div 
-        v-else-if="!loading && searched" 
-        class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg flex items-start"
-      >
-        <div class="flex-shrink-0 mr-3">
-          <AlertTriangle class="w-5 h-5 text-yellow-400" />
-        </div>
-        <div>
-          <p class="font-medium">No recipes found with these ingredients.</p>
-          <p class="text-sm">Try adding more ingredients or using different ones. Common ingredients like chicken, pasta, rice, or vegetables often yield better results.</p>
-        </div>
+      <!-- No Results -->
+      <div v-else-if="searched" class="text-center py-12">
+        <AlertTriangle class="w-12 h-12 text-gray-400 mx-auto" />
+        <h2 class="text-2xl font-bold text-gray-800 mt-4">No Recipes Found</h2>
+        <p class="text-gray-600 mt-2">Try adjusting your ingredients or search criteria.</p>
       </div>
-    </main>
+    </div>
   </div>
 </template>
 

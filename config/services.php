@@ -35,8 +35,9 @@ return [
         ],
     ],
 
-    'gemini' => [
-        'api_key' => env('GEMINI_API_KEY'),
+    'edamam' => [
+        'app_id' => env('EDAMAM_APP_ID'),
+        'app_key' => env('EDAMAM_APP_KEY'),
     ],
 
 ];

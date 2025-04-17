@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
 import { Star, Clock, Users, ChefHat } from 'lucide-vue-next';
@@ -10,6 +10,14 @@ const favorites = computed(() => store.getters.allFavorites);
 const removeFavorite = (recipe) => {
   store.dispatch('toggleFavorite', recipe);
 };
+
+// Load favorites from localStorage on component mount
+onMounted(() => {
+  const savedFavorites = localStorage.getItem('favorites');
+  if (savedFavorites) {
+    store.commit('SET_FAVORITES', JSON.parse(savedFavorites));
+  }
+});
 </script>
 
 <template>
@@ -66,7 +74,27 @@ const removeFavorite = (recipe) => {
             <h2 class="text-2xl font-bold text-gray-900 mb-2">{{ recipe.title }}</h2>
             <p class="text-gray-600 mb-4 line-clamp-2">{{ recipe.description }}</p>
             
-            <div class="flex items-center justify-between text-sm text-gray-500">
+            <div class="space-y-4">
+              <div>
+                <h4 class="font-medium text-lg text-indigo-600">Ingredients:</h4>
+                <ul class="mt-2 list-disc list-inside text-gray-600">
+                  <li v-for="ingredient in recipe.ingredients" :key="ingredient">
+                    {{ ingredient }}
+                  </li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 class="font-medium text-lg text-indigo-600">Instructions:</h4>
+                <ol class="mt-2 list-decimal list-inside text-gray-600">
+                  <li v-for="(instruction, index) in recipe.instructions" :key="index">
+                    {{ instruction }}
+                  </li>
+                </ol>
+              </div>
+            </div>
+            
+            <div class="flex items-center justify-between text-sm text-gray-500 mt-4 pt-4 border-t">
               <span class="flex items-center">
                 <Clock class="w-5 h-5 mr-1" />
                 {{ recipe.cooking_time }} mins
