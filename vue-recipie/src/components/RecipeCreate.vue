@@ -18,7 +18,8 @@ const recipe = ref({
   difficulty: 'easy',
   ingredients: [''],
   instructions: [''],
-  image_url: ''
+  image_url: '',
+  dietary_restrictions: []
 });
 
 const addIngredient = () => {
@@ -229,6 +230,73 @@ const handleSubmit = async () => {
               class="pl-10 block w-full rounded-md border-gray-300 focus:border-orange-500 focus:ring-orange-500"
               placeholder="https://example.com/image.jpg"
             />
+          </div>
+        </div>
+
+        <!-- Dietary Restrictions -->
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 mb-4">Dietary Restrictions</h2>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="vegetarian"
+                v-model="recipe.dietary_restrictions"
+                value="vegetarian"
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label for="vegetarian" class="ml-2 block text-sm text-gray-900">Vegetarian</label>
+            </div>
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="vegan"
+                v-model="recipe.dietary_restrictions"
+                value="vegan"
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label for="vegan" class="ml-2 block text-sm text-gray-900">Vegan</label>
+            </div>
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="gluten_free"
+                v-model="recipe.dietary_restrictions"
+                value="gluten_free"
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label for="gluten_free" class="ml-2 block text-sm text-gray-900">Gluten Free</label>
+            </div>
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="dairy_free"
+                v-model="recipe.dietary_restrictions"
+                value="dairy_free"
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label for="dairy_free" class="ml-2 block text-sm text-gray-900">Dairy Free</label>
+            </div>
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="nut_free"
+                v-model="recipe.dietary_restrictions"
+                value="nut_free"
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label for="nut_free" class="ml-2 block text-sm text-gray-900">Nut Free</label>
+            </div>
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="halal"
+                v-model="recipe.dietary_restrictions"
+                value="halal"
+                class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <label for="halal" class="ml-2 block text-sm text-gray-900">Halal</label>
+            </div>
           </div>
         </div>
 

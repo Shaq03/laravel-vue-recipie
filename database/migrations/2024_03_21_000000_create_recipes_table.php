@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('difficulty');
             $table->json('ingredients');
             $table->json('instructions');
+            $table->json('dietary_restrictions')->nullable();
             $table->string('image_url')->nullable();
             $table->timestamps();
         });

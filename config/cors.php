@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'paths' => ['api/*'],
+    'paths' => ['api/*', 'v1/*'],
     'allowed_methods' => ['*'],
     'allowed_origins' => ['http://localhost:5173'],
     'allowed_origins_patterns' => [],

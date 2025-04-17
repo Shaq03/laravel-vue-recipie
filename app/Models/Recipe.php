@@ -17,12 +17,14 @@ class Recipe extends Model
         'difficulty',
         'ingredients',
         'instructions',
-        'image_url'
+        'image_url',
+        'dietary_restrictions'
     ];
 
     protected $casts = [
         'ingredients' => 'array',
         'instructions' => 'array',
         'servings' => 'integer',
+        'dietary_restrictions' => 'array',
     ];
 } 

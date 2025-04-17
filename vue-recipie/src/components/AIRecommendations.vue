@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useStore } from 'vuex';
-import { ChefHat, Search, Loader, X, Star } from 'lucide-vue-next';
+import { ChefHat, Search, Loader, X, Star, Clock, Users } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
 
 const store = useStore();
@@ -13,26 +13,6 @@ const recommendations = ref([]);
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
 const toggleFavorite = (recipe) => store.dispatch('toggleFavorite', recipe);
 
-const validateIngredient = (ingredient) => {
-  // Basic validation rules
-  const commonIngredients = [
-    'chicken', 'beef', 'pork', 'fish', 'rice', 'pasta', 'tomato', 'tomatoes',
-    'onion', 'garlic', 'potato', 'carrot', 'lettuce', 'cheese', 'milk', 'egg',
-    'eggs', 'flour', 'sugar', 'salt', 'pepper', 'oil', 'butter', 'bread'
-  ];
-
-  // Check if ingredient is too short
-  if (ingredient.length < 2) return false;
-  
-  // Check if ingredient contains numbers
-  if (/\d/.test(ingredient)) return false;
-  
-  // Check if ingredient is in our common ingredients list (case-insensitive)
-  return commonIngredients.some(common => 
-    common.toLowerCase() === ingredient.toLowerCase()
-  );
-};
-
 const addIngredient = () => {
   const ingredient = currentIngredient.value.trim().toLowerCase();
   
@@ -41,11 +21,6 @@ const addIngredient = () => {
   // Check if ingredient already exists
   if (selectedIngredients.value.includes(ingredient)) {
     error.value = 'This ingredient is already added';
-    return;
-  }
-
-  if (!validateIngredient(ingredient)) {
-    error.value = `"${ingredient}" might be misspelled or invalid. Please check your spelling or try a different ingredient.`;
     return;
   }
 
@@ -60,8 +35,13 @@ const removeIngredient = (index) => {
 
 const generateUniqueId = (recipe) => {
   // Create a unique ID based on the recipe content
-  const content = `${recipe.title}-${recipe.ingredients.join('-')}-${recipe.instructions.join('-')}`;
-  return `ai-${btoa(content).replace(/[/+=]/g, '')}`;
+  const content = `${recipe.title}-${recipe.ingredients.join('-')}`;
+  // Use encodeURIComponent to handle all characters
+  const encoded = encodeURIComponent(content)
+    .replace(/%/g, '') // Remove % symbols
+    .replace(/[^a-zA-Z0-9]/g, '') // Keep only alphanumeric characters
+    .substring(0, 32); // Limit length to 32 characters
+  return `ai-${encoded}`;
 };
 
 const getRecommendations = async () => {
@@ -72,15 +52,17 @@ const getRecommendations = async () => {
 
   loading.value = true;
   error.value = null;
+  recommendations.value = [];
 
   try {
     const response = await fetch('http://localhost:8000/api/v1/ai/recommendations', {
       method: 'POST',
+      mode: 'cors',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-XSRF-TOKEN': document.cookie.match(/XSRF-TOKEN=([\w-]+)/)?.[1],
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({
         ingredients: selectedIngredients.value
@@ -88,18 +70,27 @@ const getRecommendations = async () => {
     });
 
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.message || 'Failed to get recommendations');
+      const errorText = await response.text();
+      console.error('API Error Response:', errorText);
+      throw new Error(`Server returned ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    // Add unique IDs to each recipe before setting recommendations
+    
+    if (!data.recipes || !Array.isArray(data.recipes)) {
+      console.error('Invalid Response Data:', data);
+      throw new Error('No recipes found in response');
+    }
+
     recommendations.value = data.recipes.map(recipe => ({
       ...recipe,
       id: generateUniqueId(recipe)
     }));
+
   } catch (err) {
-    error.value = 'Unable to get recommendations. Please try again with different ingredients.';
+    console.error('Error getting recommendations:', err);
+    error.value = err.message || 'Unable to get recommendations. Please try again with different ingredients.';
+    recommendations.value = [];
   } finally {
     loading.value = false;
   }
@@ -138,7 +129,7 @@ const handleKeydown = (event) => {
                 v-model="currentIngredient"
                 @keydown="handleKeydown"
                 class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Type an ingredient and press Enter"
+                placeholder="Type any ingredient and press Enter"
               />
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search class="h-5 w-5 text-gray-400" />
@@ -193,19 +184,35 @@ const handleKeydown = (event) => {
             :key="recipe.id"
             class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 ease-in-out"
           >
+            <div class="relative pb-48">
+              <img
+                v-if="recipe.image_url"
+                :src="recipe.image_url"
+                :alt="recipe.title"
+                class="absolute h-full w-full object-cover"
+              />
+              <div
+                v-else
+                class="absolute inset-0 bg-indigo-50 flex items-center justify-center"
+              >
+                <ChefHat class="h-12 w-12 text-indigo-300" />
+              </div>
+            </div>
+            
             <div class="p-6">
               <div class="flex justify-between items-start mb-2">
-              <h3 class="text-2xl font-semibold text-gray-900 mb-2">{{ recipe.title }}</h3>
-              <button
-      @click="toggleFavorite(recipe)"
-      class="p-2 hover:bg-gray-100 rounded-full transition-colors"
-    >
-      <Star 
-        class="w-6 h-6" 
-        :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
-      />
-    </button>
-  </div>
+                <h3 class="text-2xl font-semibold text-gray-900 mb-2">{{ recipe.title }}</h3>
+                <button
+                  @click="toggleFavorite(recipe)"
+                  class="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <Star 
+                    class="w-6 h-6" 
+                    :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
+                  />
+                </button>
+              </div>
+              
               <p class="text-gray-600 mb-4">{{ recipe.description }}</p>
               
               <div class="space-y-4">
@@ -221,10 +228,44 @@ const handleKeydown = (event) => {
                 <div>
                   <h4 class="font-medium text-lg text-indigo-600">Instructions:</h4>
                   <ol class="mt-2 list-decimal list-inside text-gray-600">
-                    <li v-for="instruction in recipe.instructions" :key="instruction" class="mb-2">
+                    <li v-for="(instruction, index) in recipe.instructions" :key="index">
                       {{ instruction }}
                     </li>
                   </ol>
+                </div>
+
+                <div class="flex items-center justify-between text-sm text-gray-500 border-t pt-4">
+                  <span class="flex items-center">
+                    <Clock class="h-4 w-4 mr-1" />
+                    {{ recipe.cooking_time }} mins
+                  </span>
+                  <span class="flex items-center">
+                    <Users class="h-4 w-4 mr-1" />
+                    {{ recipe.servings }} servings
+                  </span>
+                  <span class="capitalize px-3 py-1 rounded-full text-xs font-medium" 
+                    :class="{
+                      'bg-green-100 text-green-800': recipe.difficulty === 'easy',
+                      'bg-yellow-100 text-yellow-800': recipe.difficulty === 'medium',
+                      'bg-red-100 text-red-800': recipe.difficulty === 'hard'
+                    }"
+                  >
+                    {{ recipe.difficulty }}
+                  </span>
+                </div>
+                
+                <div v-if="recipe.source_url" class="mt-6">
+                  <a 
+                    :href="recipe.source_url" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    View Full Recipe
+                    <svg class="ml-2 -mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
                 </div>
               </div>
             </div>
