@@ -13,10 +13,7 @@ const removeFavorite = (recipe) => {
 
 // Load favorites from localStorage on component mount
 onMounted(() => {
-  const savedFavorites = localStorage.getItem('favorites');
-  if (savedFavorites) {
-    store.commit('SET_FAVORITES', JSON.parse(savedFavorites));
-  }
+  store.dispatch('fetchFavorites');
 });
 </script>
 

@@ -8,8 +8,12 @@ const store = useStore();
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 9;
+
+// Get user-specific favorites from the store
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
-const toggleFavorite = (recipe) => store.dispatch('toggleFavorite', recipe);
+const toggleFavorite = async (recipe) => {
+  await store.dispatch('toggleFavorite', recipe);
+};
 
 const recipes = computed(() => store.getters.allRecipes);
 const loading = computed(() => store.state.loading);
@@ -56,6 +60,10 @@ const resetFilters = () => {
 
 onMounted(async () => {
   await store.dispatch('fetchRecipes');
+  // Fetch user's favorites when component mounts
+  if (store.getters.isAuthenticated) {
+    await store.dispatch('fetchFavorites');
+  }
 });
 </script>
 
@@ -151,6 +159,7 @@ onMounted(async () => {
               <ChefHat class="w-16 h-16 text-gray-400" />
             </div>
             <button
+              v-if="store.getters.isAuthenticated"
               @click.prevent="toggleFavorite(recipe)"
               class="absolute top-4 right-4 p-2 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors"
             >
