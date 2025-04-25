@@ -9,6 +9,11 @@ class Recipe extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'title',
         'description',
@@ -18,13 +23,34 @@ class Recipe extends Model
         'ingredients',
         'instructions',
         'image_url',
-        'dietary_restrictions'
+        'user_id',
     ];
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
         'ingredients' => 'array',
         'instructions' => 'array',
         'servings' => 'integer',
-        'dietary_restrictions' => 'array',
     ];
+
+    /**
+     * Get the user that created the recipe.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the users who have favorited this recipe.
+     */
+    public function favoritedBy()
+    {
+        return $this->belongsToMany(User::class, 'favorites', 'recipe_id', 'user_id')
+            ->withTimestamps();
+    }
 } 
