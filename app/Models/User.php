@@ -20,6 +20,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'username',
+        'name',
         'email',
         'password',
     ];
@@ -59,5 +60,21 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Recipe::class, 'favorites', 'user_id', 'recipe_id')
             ->withTimestamps();
+    }
+
+    /**
+     * Get the user's preferences.
+     */
+    public function preferences()
+    {
+        return $this->hasOne(UserPreference::class);
+    }
+
+    /**
+     * Get the user's cooking history.
+     */
+    public function cookingHistory()
+    {
+        return $this->hasMany(CookingHistory::class);
     }
 }

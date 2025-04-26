@@ -8,6 +8,7 @@ const store = useStore();
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 9;
+const selectedCuisine = ref('');
 
 // Get user-specific favorites from the store
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
@@ -15,9 +16,21 @@ const toggleFavorite = async (recipe) => {
   await store.dispatch('toggleFavorite', recipe);
 };
 
-const recipes = computed(() => store.getters.allRecipes);
+// Only get user-created recipes
+const recipes = computed(() => store.getters.allRecipes.filter(recipe => recipe.source === 'user'));
 const loading = computed(() => store.state.loading);
 const error = computed(() => store.state.error);
+
+// Get unique cuisines from recipes
+const availableCuisines = computed(() => {
+  const cuisineSet = new Set();
+  recipes.value.forEach(recipe => {
+    if (recipe.cuisines) {
+      recipe.cuisines.forEach(cuisine => cuisineSet.add(cuisine));
+    }
+  });
+  return Array.from(cuisineSet).sort();
+});
 
 // Filtered recipes
 const filteredRecipes = computed(() => {
@@ -28,7 +41,10 @@ const filteredRecipes = computed(() => {
                            ingredient.toLowerCase().includes(searchQuery.value.toLowerCase())
                          );
     
-    return matchesSearch;
+    const matchesCuisine = !selectedCuisine.value || 
+                          (recipe.cuisines && recipe.cuisines.includes(selectedCuisine.value));
+    
+    return matchesSearch && matchesCuisine;
   });
 });
 
@@ -55,6 +71,7 @@ const pageNumbers = computed(() => {
 
 const resetFilters = () => {
   searchQuery.value = '';
+  selectedCuisine.value = '';
   currentPage.value = 1;
 };
 
@@ -74,8 +91,8 @@ onMounted(async () => {
     <div class="max-w-7xl mx-auto py-16 px-4 sm:py-24 sm:px-6 lg:px-8">
       <div class="text-center">
         <ChefHat class="h-16 w-16 text-orange-500 mx-auto mb-4" />
-        <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">Culinary Delights</h1>
-        <p class="mt-5 text-xl text-gray-600">Discover our handpicked collection of mouthwatering recipes</p>
+        <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">Your Recipes</h1>
+        <p class="mt-5 text-xl text-gray-600">Discover recipes created by our community</p>
       </div>
 
       <!-- Filters Section -->
@@ -91,6 +108,19 @@ onMounted(async () => {
                 placeholder="Search recipes or ingredients..."
                 class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
               >
+            </div>
+          </div>
+
+          <!-- Cuisine Filter -->
+          <div class="flex-1">
+            <div class="relative">
+              <select
+                v-model="selectedCuisine"
+                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="">All Cuisines</option>
+                <option v-for="cuisine in availableCuisines" :key="cuisine" :value="cuisine">{{ cuisine }}</option>
+              </select>
             </div>
           </div>
 
@@ -145,59 +175,59 @@ onMounted(async () => {
           :key="recipe.id"
           class="bg-white rounded-xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
         >
-          <div class="relative pb-2/3">
-            <img
-              v-if="recipe.image_url"
-              :src="recipe.image_url"
-              :alt="recipe.title"
-              class="absolute inset-0 w-full h-full object-cover"
-            />
-            <div
-              v-else
-              class="absolute inset-0 bg-gray-200 flex items-center justify-center"
-            >
-              <ChefHat class="w-16 h-16 text-gray-400" />
-            </div>
-            <button
-              v-if="store.getters.isAuthenticated"
-              @click.prevent="toggleFavorite(recipe)"
-              class="absolute top-4 right-4 p-2 bg-white rounded-full shadow-md hover:bg-gray-50 transition-colors"
-            >
-              <Star 
-                class="w-6 h-6" 
-                :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
-              />
-            </button>
-          </div>
-          
           <div class="p-6">
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">{{ recipe.title }}</h2>
+            <div class="flex justify-between items-start">
+              <h2 class="text-2xl font-bold text-gray-900 mb-2">{{ recipe.title }}</h2>
+              <button
+                v-if="store.getters.isAuthenticated"
+                @click.prevent="toggleFavorite(recipe)"
+                class="p-2 bg-white rounded-full hover:bg-gray-50 transition-colors"
+              >
+                <Star 
+                  class="w-6 h-6" 
+                  :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
+                />
+              </button>
+            </div>
+            
             <p class="text-gray-600 mb-4 line-clamp-2">{{ recipe.description }}</p>
             
-            <!-- Ingredients -->
-            <div v-if="recipe.ingredients && recipe.ingredients.length > 0" class="mt-4">
-              <h3 class="text-lg font-semibold text-gray-900 mb-2">Ingredients:</h3>
-              <ul class="list-disc list-inside text-gray-600">
-                <li v-for="ingredient in recipe.ingredients" :key="ingredient" class="mb-1">
-                  {{ ingredient }}
-                </li>
-              </ul>
+            <!-- Recipe Details -->
+            <div class="flex items-center text-sm text-gray-600 mb-4">
+              <span class="capitalize">{{ recipe.difficulty }}</span>
+              <span class="mx-2">•</span>
+              <span>{{ recipe.cooking_time }} mins</span>
             </div>
 
-            <!-- Source Link -->
-            <div v-if="recipe.source_url" class="mt-6">
-              <a 
-                :href="recipe.source_url" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
+            <!-- Cuisine Tags -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span
+                v-for="cuisine in recipe.cuisines"
+                :key="cuisine"
+                class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
               >
-                View Full Recipe
-                <svg class="ml-2 -mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
+                {{ cuisine }}
+              </span>
             </div>
+
+            <!-- Dietary Tags -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span
+                v-for="tag in recipe.tags"
+                :key="tag"
+                class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full"
+              >
+                {{ tag }}
+              </span>
+            </div>
+
+            <!-- View Recipe Button -->
+            <router-link
+              :to="`/recipe/${recipe.id}`"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
+            >
+              View Recipe
+            </router-link>
           </div>
         </div>
       </div>

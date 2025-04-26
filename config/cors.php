@@ -18,7 +18,7 @@ return [
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => ['http://localhost:5173'],
+    'allowed_origins' => ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:5173'],
 
     'allowed_origins_patterns' => [],
 
@@ -29,6 +29,8 @@ return [
         'Authorization',
         'X-CSRF-TOKEN',
         'X-XSRF-TOKEN',
+        'Origin',
+        'Access-Control-Allow-Origin'
     ],
 
     'exposed_headers' => [],

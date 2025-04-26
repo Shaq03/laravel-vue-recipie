@@ -58,4 +58,45 @@ class RecipeController extends Controller
             ], $e instanceof \Illuminate\Validation\ValidationException ? 422 : 500);
         }
     }
+
+    public function show($id): JsonResponse
+    {
+        try {
+            $recipe = Recipe::with([
+                'ratings',
+                'favoritedBy',
+                'user'
+            ])->findOrFail($id);
+
+            // Format the recipe data
+            $formattedRecipe = [
+                'id' => $recipe->id,
+                'title' => $recipe->title,
+                'description' => $recipe->description,
+                'ingredients' => $recipe->ingredients,
+                'instructions' => $recipe->instructions,
+                'cooking_time' => $recipe->cooking_time,
+                'servings' => $recipe->servings,
+                'difficulty' => $recipe->difficulty,
+                'image_url' => $recipe->image_url,
+                'cuisines' => $recipe->cuisines,
+                'tags' => $recipe->tags,
+                'dietary_restrictions' => $recipe->dietary_restrictions,
+                'average_rating' => $recipe->ratings->avg('rating'),
+                'total_ratings' => $recipe->ratings->count(),
+                'is_favorited' => $recipe->favoritedBy->contains(auth()->id()),
+                'created_at' => $recipe->created_at,
+                'updated_at' => $recipe->updated_at,
+                'user' => $recipe->user ? [
+                    'id' => $recipe->user->id,
+                    'name' => $recipe->user->name
+                ] : null
+            ];
+
+            return response()->json(['recipe' => $formattedRecipe]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving recipe: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to retrieve recipe'], 500);
+        }
+    }
 } 

@@ -43,6 +43,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/recipe/:recipeId',
+    name: 'recipe.detail',
+    component: () => import('../components/RecipeDetail.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/ai-recommendations',
     name: 'ai-recommendations',
     component: () => import('../components/AIRecommendations.vue'),

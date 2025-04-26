@@ -1,26 +1,36 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
+import { useStore } from 'vuex';
 
 const router = useRouter();
+const store = useStore();
 const email = ref('');
 const password = ref('');
 const error = ref('');
+const loading = ref(false);
 
 const login = async () => {
+  if (!email.value || !password.value) {
+    error.value = 'Please enter both email and password';
+    return;
+  }
+
+  loading.value = true;
+  error.value = '';
+
   try {
-    const response = await axios.post('/api/login', {
+    await store.dispatch('login', {
       email: email.value,
       password: password.value
     });
     
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-    
     router.push('/');
   } catch (err) {
+    console.error('Login error:', err);
     error.value = err.response?.data?.message || 'An error occurred during login';
+  } finally {
+    loading.value = false;
   }
 };
 </script>
@@ -68,9 +78,11 @@ const login = async () => {
         <div>
           <button
             type="submit"
-            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            :disabled="loading"
+            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign in
+            <span v-if="loading">Signing in...</span>
+            <span v-else>Sign in</span>
           </button>
         </div>
 

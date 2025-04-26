@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AIRecommendationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,8 @@ use Illuminate\Support\Str;
 
 class AIRecommendationController extends Controller
 {
+    private $aiService;
+
     private $cookingMethods = [
         'bake', 'boil', 'broil', 'fry', 'grill', 'roast', 'saute', 'simmer', 'steam', 'stir-fry'
     ];
@@ -26,136 +29,98 @@ class AIRecommendationController extends Controller
         'advanced' => 'For experienced cooks'
     ];
 
+    public function __construct(AIRecommendationService $aiService)
+    {
+        $this->aiService = $aiService;
+    }
+
     public function getRecommendations(Request $request)
     {
-        $request->validate([
-            'ingredients' => 'required|array',
-            'ingredients.*' => 'string'
-        ]);
-
-        $ingredients = array_map('strtolower', $request->ingredients);
-
         try {
-            Log::info('Attempting to get recipes for ingredients', ['ingredients' => $ingredients]);
-            
-            // Get 3 different recipes
-            $response = Http::withOptions([
-                'verify' => false // Disable SSL verification
-            ])->get('https://api.spoonacular.com/recipes/findByIngredients', [
-                'ingredients' => implode(',', $ingredients),
-                'number' => 3,
-                'ranking' => 1,
-                'ignorePantry' => true,
-                'apiKey' => config('services.spoonacular.api_key')
+            $request->validate([
+                'ingredients' => 'required|array',
+                'ingredients.*' => 'string'
             ]);
 
-            if (!$response->successful()) {
-                Log::error('Spoonacular API error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'ingredients' => $ingredients,
-                    'api_key' => substr(config('services.spoonacular.api_key'), 0, 5) . '...' // Log first 5 chars of API key
+            Log::info('Getting AI recommendations', [
+                'user_id' => $request->user()->id,
+                'ingredients' => $request->ingredients
+            ]);
+
+            // Check if we have any AI recipes in the database
+            $aiRecipeCount = Recipe::where('source', 'ai')->count();
+            if ($aiRecipeCount === 0) {
+                Log::warning('No AI recipes found in database');
+                return response()->json([
+                    'error' => 'No recipes available for recommendations. Please try again later.'
+                ], 404);
+            }
+
+            $recommendations = $this->aiService->getRecommendations(
+                $request->user(),
+                $request->ingredients
+            );
+
+            if (empty($recommendations)) {
+                Log::info('No recommendations found', [
+                    'user_id' => $request->user()->id,
+                    'ingredients' => $request->ingredients
                 ]);
-                throw new \Exception('Failed to find recipes with these ingredients: ' . $response->body());
+                return response()->json([
+                    'error' => 'No recipes found matching your ingredients. Try adding different ingredients.'
+                ], 404);
             }
 
-            $recipesData = $response->json();
-            
-            if (empty($recipesData)) {
-                Log::warning('No recipes found for ingredients', ['ingredients' => $ingredients]);
-                throw new \Exception('No recipes found with these ingredients. Try different ingredients.');
-            }
-
-            Log::info('Found recipes', ['count' => count($recipesData)]);
-
-            $recipes = [];
-            foreach ($recipesData as $recipeData) {
-                try {
-                    // Get detailed recipe information
-                    $recipeDetails = Http::withOptions([
-                        'verify' => false // Disable SSL verification
-                    ])->get("https://api.spoonacular.com/recipes/{$recipeData['id']}/information", [
-                        'apiKey' => config('services.spoonacular.api_key')
-                    ]);
-
-                    if (!$recipeDetails->successful()) {
-                        Log::warning('Failed to get recipe details', [
-                            'recipe_id' => $recipeData['id'],
-                            'status' => $recipeDetails->status(),
-                            'body' => $recipeDetails->body()
-                        ]);
-                        continue; // Skip this recipe if details can't be fetched
-                    }
-
-                    $details = $recipeDetails->json();
-
-                    // Get recipe instructions
-                    $instructions = [];
-                    if (isset($details['analyzedInstructions'][0]['steps'])) {
-                        $instructions = array_map(function($step) {
-                            return $step['step'];
-                        }, $details['analyzedInstructions'][0]['steps']);
-                    }
-
-                    // Create a unique slug for the recipe
-                    $slug = Str::slug($details['title']) . '-' . Str::random(6);
-
-                    // Save the recipe to the database
-                    $recipe = Recipe::create([
-                        'title' => $details['title'],
-                        'description' => $details['summary'] ?? 'No description available',
-                        'cooking_time' => $details['readyInMinutes'],
-                        'servings' => $details['servings'],
-                        'difficulty' => $this->determineDifficulty($details['readyInMinutes'], count($details['extendedIngredients'])),
-                        'ingredients' => array_map(function($ingredient) {
-                            return $ingredient['original'];
-                        }, $details['extendedIngredients']),
-                        'instructions' => $instructions,
-                        'image_url' => $details['image'] ?? null,
-                        'user_id' => $request->user()->id
-                    ]);
-
-                    $recipes[] = [
-                        'id' => $recipe->id,
-                        'title' => $recipe->title,
-                        'ingredients' => $recipe->ingredients,
-                        'instructions' => $recipe->instructions,
-                        'cooking_time' => $recipe->cooking_time,
-                        'servings' => $recipe->servings,
-                        'difficulty' => $recipe->difficulty,
-                        'image_url' => $recipe->image_url
-                    ];
-
-                } catch (\Exception $e) {
-                    Log::warning('Error processing recipe details', [
-                        'recipe_id' => $recipeData['id'],
-                        'error' => $e->getMessage()
-                    ]);
-                    continue;
-                }
-            }
-
-            if (empty($recipes)) {
-                Log::warning('No valid recipes found after processing', ['ingredients' => $ingredients]);
-                throw new \Exception('No valid recipes found with these ingredients. Try different ingredients.');
-            }
-
-            Log::info('Successfully generated recipes', ['count' => count($recipes)]);
-
-            return response()->json(['recipes' => $recipes])
-                ->header('Access-Control-Allow-Origin', 'http://localhost:5173')
-                ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, X-Requested-With')
-                ->header('Access-Control-Allow-Credentials', 'true');
+            return response()->json([
+                'recommendations' => $recommendations
+            ]);
         } catch (\Exception $e) {
-            Log::error('Failed to generate recipes', [
+            Log::error('AI Recommendation Error', [
                 'error' => $e->getMessage(),
-                'ingredients' => $ingredients,
+                'user_id' => $request->user()->id,
+                'ingredients' => $request->ingredients,
                 'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
-                'error' => $e->getMessage()
+                'error' => 'Failed to generate recommendations. Please try again.'
+            ], 500);
+        }
+    }
+
+    public function updatePreferences(Request $request)
+    {
+        try {
+            $request->validate([
+                'cooking_skill_level' => 'required|string|in:beginner,intermediate,advanced',
+                'preferred_cuisines' => 'array',
+                'dietary_restrictions' => 'array',
+                'seasonal_preferences' => 'boolean'
+            ]);
+
+            $user = $request->user();
+            $preferences = $user->preferences ?? $user->preferences()->create();
+
+            $preferences->update([
+                'cooking_skill_level' => $request->cooking_skill_level,
+                'preferred_cuisines' => $request->preferred_cuisines ?? [],
+                'dietary_restrictions' => $request->dietary_restrictions ?? [],
+                'seasonal_preferences' => $request->seasonal_preferences ?? true
+            ]);
+
+            return response()->json([
+                'message' => 'Preferences updated successfully',
+                'preferences' => $preferences
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Update Preferences Error', [
+                'error' => $e->getMessage(),
+                'user_id' => $request->user()->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to update preferences. Please try again.'
             ], 500);
         }
     }
@@ -527,6 +492,28 @@ class AIRecommendationController extends Controller
             return 'medium';
         } else {
             return 'hard';
+        }
+    }
+
+    public function getRecipe($id)
+    {
+        try {
+            $recipe = Recipe::where('source', 'ai')
+                ->with(['ratings', 'favoritedBy'])
+                ->findOrFail($id);
+
+            return response()->json([
+                'recipe' => $recipe
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AI Recipe Retrieval Error', [
+                'error' => $e->getMessage(),
+                'recipe_id' => $id
+            ]);
+
+            return response()->json([
+                'error' => 'Recipe not found'
+            ], 404);
         }
     }
 } 
