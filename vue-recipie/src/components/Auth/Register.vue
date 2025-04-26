@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
+import { useStore } from 'vuex';
 
 const router = useRouter();
+const store = useStore();
 const username = ref('');
 const email = ref('');
 const password = ref('');
@@ -17,19 +18,16 @@ const register = async () => {
   }
 
   try {
-    const response = await axios.post('/api/register', {
+    await store.dispatch('register', {
       username: username.value,
       email: email.value,
       password: password.value,
       password_confirmation: confirmPassword.value
     });
     
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-    
     router.push('/');
   } catch (err) {
-    error.value = err.response?.data?.message || 'An error occurred during registration';
+    error.value = err.message || 'An error occurred during registration';
   }
 };
 </script>

@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useStore } from 'vuex';
-import { ChefHat, Search, Loader, X, Star, Clock, Users } from 'lucide-vue-next';
+import { ChefHat, Search, Loader, X, Star, Clock, Users, Settings } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
+import axios from 'axios';
 
 const store = useStore();
 const currentIngredient = ref('');
@@ -10,7 +11,32 @@ const selectedIngredients = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const recommendations = ref([]);
+const showPreferences = ref(false);
+const statusMessage = ref('');
+const searched = ref(false);
+
+// Add a computed property for authentication status
+const isAuthenticated = computed(() => store.getters.isAuthenticated);
+
+const preferences = reactive({
+  cooking_skill_level: 'beginner',
+  preferred_cuisines: [],
+  dietary_restrictions: [],
+  seasonal_preferences: true
+});
+
+const availableCuisines = [
+  'Italian', 'Mexican', 'Chinese', 'Japanese', 'Indian', 
+  'Thai', 'American', 'Mediterranean', 'French', 'Korean'
+];
+
+const availableRestrictions = [
+  'Vegetarian', 'Vegan', 'Gluten-Free', 'Dairy-Free', 
+  'Nut-Free', 'Halal', 'Kosher'
+];
+
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
+
 const toggleFavorite = async (recipe) => {
   try {
     await store.dispatch('toggleFavorite', recipe);
@@ -24,7 +50,6 @@ const addIngredient = () => {
   
   if (!ingredient) return;
   
-  // Check if ingredient already exists
   if (selectedIngredients.value.includes(ingredient)) {
     error.value = 'This ingredient is already added';
     return;
@@ -40,13 +65,13 @@ const removeIngredient = (index) => {
 };
 
 const getRecommendations = async () => {
-  if (selectedIngredients.value.length === 0) {
-    error.value = 'Please add at least one ingredient';
+  if (!store.getters.isAuthenticated) {
+    error.value = 'Please log in to get AI recommendations';
     return;
   }
 
-  if (!store.getters.isAuthenticated) {
-    error.value = 'Please log in to get AI recommendations';
+  if (selectedIngredients.value.length === 0) {
+    error.value = 'Please add at least one ingredient';
     return;
   }
 
@@ -55,40 +80,87 @@ const getRecommendations = async () => {
   recommendations.value = [];
 
   try {
-    const response = await fetch('http://localhost:8000/api/v1/ai/recommendations', {
-      method: 'POST',
-      mode: 'cors',
-      credentials: 'include',
+    const token = store.state.token;
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await axios.post('/api/v1/ai/recommendations', {
+      ingredients: selectedIngredients.value
+    }, {
       headers: {
-        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Authorization': `Bearer ${store.state.token}`
-      },
-      body: JSON.stringify({
-        ingredients: selectedIngredients.value
-      })
+        'Content-Type': 'application/json'
+      }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Response:', errorText);
-      throw new Error(`Server returned ${response.status}: ${errorText}`);
+    if (response.data) {
+      if (response.data.error) {
+        error.value = response.data.error;
+      } else if (response.data.recommendations) {
+        recommendations.value = response.data.recommendations;
+      }
     }
-
-    const data = await response.json();
-    
-    if (!data.recipes || !Array.isArray(data.recipes)) {
-      console.error('Invalid Response Data:', data);
-      throw new Error('No recipes found in response');
-    }
-
-    recommendations.value = data.recipes;
-
   } catch (err) {
-    console.error('Error getting recommendations:', err);
-    error.value = err.message || 'Unable to get recommendations. Please try again with different ingredients.';
-    recommendations.value = [];
+    console.error('Error getting recommendations:', err.response?.data || err.message);
+    if (err.response?.status === 401) {
+      // Token might be expired, try to refresh or logout
+      store.dispatch('logout');
+      error.value = 'Your session has expired. Please log in again.';
+    } else if (err.response?.status === 404) {
+      error.value = err.response.data.error || 'No recipes found matching your ingredients. Try adding different ingredients.';
+    } else {
+      error.value = err.response?.data?.error || err.response?.data?.message || 'Failed to get recommendations. Please try again.';
+    }
+  } finally {
+    loading.value = false;
+  }
+};
+
+const updatePreferences = async () => {
+  console.log('Auth state:', {
+    isAuthenticated: store.getters.isAuthenticated,
+    token: store.state.token,
+    user: store.state.user
+  });
+
+  if (!store.getters.isAuthenticated) {
+    error.value = 'Please log in to save preferences';
+    return;
+  }
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    const token = store.state.token;
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await axios.put('/api/v1/ai/preferences', preferences, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.data) {
+      error.value = null;
+      showPreferences.value = false;
+      console.log('Preferences updated successfully:', response.data);
+    }
+  } catch (err) {
+    console.error('Preferences update error:', err.response?.data || err.message);
+    if (err.response?.status === 401) {
+      // Token might be expired, try to refresh or logout
+      store.dispatch('logout');
+      error.value = 'Your session has expired. Please log in again.';
+    } else {
+      error.value = err.response?.data?.error || err.response?.data?.message || 'Failed to update preferences';
+    }
   } finally {
     loading.value = false;
   }
@@ -98,6 +170,65 @@ const handleKeydown = (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();
     addIngredient();
+  }
+};
+
+const searchRecipes = async () => {
+  if (selectedIngredients.value.length === 0) {
+    error.value = 'Please add at least one ingredient';
+    return;
+  }
+  
+  loading.value = true;
+  error.value = null;
+  recommendations.value = [];
+  
+  try {
+    const response = await axios.post('/api/v1/ai/recommendations', {
+      ingredients: selectedIngredients.value
+    }, {
+      headers: {
+        'Authorization': `Bearer ${store.state.token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.data) {
+      if (response.data.error) {
+        error.value = response.data.error;
+      } else if (response.data.recommendations) {
+        recommendations.value = response.data.recommendations;
+      }
+    }
+    
+    // Scroll to results
+    setTimeout(() => {
+      const resultsElement = document.getElementById('results-section');
+      if (resultsElement) {
+        resultsElement.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  } catch (err) {
+    console.error('Error searching recipes:', err);
+    if (err.response?.status === 401) {
+      // Token might be expired, try to refresh or logout
+      store.dispatch('logout');
+      error.value = 'Your session has expired. Please log in again.';
+    } else if (err.response?.status === 500) {
+      // Show friendly message for server errors
+      error.value = `We couldn't find any recipes matching your ingredients: ${selectedIngredients.value.join(', ')}. 
+      
+Try these suggestions:
+• Add more common ingredients
+• Check for spelling mistakes
+• Try different ingredient combinations
+• Browse our recipe collection for inspiration`;
+    } else {
+      error.value = err.response?.data?.error || 'Failed to search for recipes. Please try again.';
+    }
+  } finally {
+    loading.value = false;
   }
 };
 </script>
@@ -115,7 +246,7 @@ const handleKeydown = (event) => {
 
       <!-- Search Form -->
       <div class="mt-12 max-w-xl mx-auto">
-        <form @submit.prevent="getRecommendations" class="bg-white shadow-md rounded-lg p-6">
+        <form @submit.prevent="searchRecipes" class="bg-white shadow-md rounded-lg p-6">
           <div class="mb-4">
             <label for="ingredients" class="block text-sm font-medium text-gray-700 mb-2">
               What ingredients do you have?
@@ -153,7 +284,16 @@ const handleKeydown = (event) => {
             </div>
           </div>
 
-          <div class="flex justify-center">
+          <div class="flex justify-between items-center">
+            <button
+              type="button"
+              @click="showPreferences = !showPreferences"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <Settings class="h-5 w-5 mr-2" />
+              Preferences
+            </button>
+
             <button
               type="submit"
               :disabled="loading || selectedIngredients.length === 0"
@@ -166,6 +306,75 @@ const handleKeydown = (event) => {
           </div>
         </form>
 
+        <!-- Preferences Panel -->
+        <div v-if="showPreferences" class="mt-4 bg-white shadow-md rounded-lg p-6">
+          <h3 class="text-lg font-medium text-gray-900 mb-4">Your Preferences</h3>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Cooking Skill Level</label>
+              <select
+                v-model="preferences.cooking_skill_level"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Preferred Cuisines</label>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <label v-for="cuisine in availableCuisines" :key="cuisine" class="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    v-model="preferences.preferred_cuisines"
+                    :value="cuisine"
+                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  >
+                  <span class="ml-2 text-sm text-gray-700">{{ cuisine }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Dietary Restrictions</label>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <label v-for="restriction in availableRestrictions" :key="restriction" class="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    v-model="preferences.dietary_restrictions"
+                    :value="restriction"
+                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  >
+                  <span class="ml-2 text-sm text-gray-700">{{ restriction }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label class="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  v-model="preferences.seasonal_preferences"
+                  class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                >
+                <span class="ml-2 text-sm text-gray-700">Consider seasonal ingredients</span>
+              </label>
+            </div>
+
+            <div class="flex justify-end">
+              <button
+                @click="updatePreferences"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Save Preferences
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Error Message -->
         <div v-if="error" class="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
           <p class="font-bold">Error</p>
@@ -173,111 +382,103 @@ const handleKeydown = (event) => {
         </div>
       </div>
 
-      <!-- Results -->
-      <div v-if="recommendations.length > 0" class="mt-16">
-        <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Your Personalized Recipes</h2>
-        <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          <div
-            v-for="recipe in recommendations"
-            :key="recipe.id"
-            class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 ease-in-out"
-          >
-            <div class="relative pb-48">
-              <img
-                v-if="recipe.image_url"
-                :src="recipe.image_url"
-                :alt="recipe.title"
-                class="absolute h-full w-full object-cover"
-              />
-              <div
-                v-else
-                class="absolute inset-0 bg-indigo-50 flex items-center justify-center"
+      <!-- Recipe Recommendations -->
+      <div v-if="recommendations.length > 0" class="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div v-for="rec in recommendations" :key="rec.recipe.id" class="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200">
+          <div class="relative">
+            <img :src="rec.recipe.image_url || '/default-recipe.jpg'" :alt="rec.recipe.title" class="w-full h-48 object-cover" />
+            <div class="absolute top-0 right-0 m-2">
+              <button
+                @click="toggleFavorite(rec.recipe)"
+                class="p-2 rounded-full bg-white shadow-md hover:bg-gray-100 transition-colors duration-200"
+                :class="{ 'text-red-500': isFavorite(rec.recipe) }"
               >
-                <ChefHat class="h-12 w-12 text-indigo-300" />
-              </div>
-            </div>
-            
-            <div class="p-6">
-              <div class="flex justify-between items-start mb-2">
-                <h3 class="text-2xl font-semibold text-gray-900 mb-2">{{ recipe.title }}</h3>
-                <button
-                  @click="toggleFavorite(recipe)"
-                  class="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <Star 
-                    class="w-6 h-6" 
-                    :class="isFavorite(recipe) ? 'text-yellow-400 fill-current' : 'text-gray-400'"
-                  />
-                </button>
-              </div>
-              
-              <p class="text-gray-600 mb-4">{{ recipe.description }}</p>
-              
-              <div class="space-y-4">
-                <div>
-                  <h4 class="font-medium text-lg text-indigo-600">Ingredients:</h4>
-                  <ul class="mt-2 list-disc list-inside text-gray-600">
-                    <li v-for="ingredient in recipe.ingredients" :key="ingredient">
-                      {{ ingredient }}
-                    </li>
-                  </ul>
-                </div>
-                
-                <div>
-                  <h4 class="font-medium text-lg text-indigo-600">Instructions:</h4>
-                  <ol class="mt-2 list-decimal list-inside text-gray-600">
-                    <li v-for="(instruction, index) in recipe.instructions" :key="index">
-                      {{ instruction }}
-                    </li>
-                  </ol>
-                </div>
-
-                <div class="flex items-center justify-between text-sm text-gray-500 border-t pt-4">
-                  <span class="flex items-center">
-                    <Clock class="h-4 w-4 mr-1" />
-                    {{ recipe.cooking_time }} mins
-                  </span>
-                  <span class="flex items-center">
-                    <Users class="h-4 w-4 mr-1" />
-                    {{ recipe.servings }} servings
-                  </span>
-                  <span class="capitalize px-3 py-1 rounded-full text-xs font-medium" 
-                    :class="{
-                      'bg-green-100 text-green-800': recipe.difficulty === 'easy',
-                      'bg-yellow-100 text-yellow-800': recipe.difficulty === 'medium',
-                      'bg-red-100 text-red-800': recipe.difficulty === 'hard'
-                    }"
-                  >
-                    {{ recipe.difficulty }}
-                  </span>
-                </div>
-                
-                <div v-if="recipe.source_url" class="mt-6">
-                  <a 
-                    :href="recipe.source_url" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    View Full Recipe
-                    <svg class="ml-2 -mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                </div>
-              </div>
+                <Star class="h-6 w-6" :fill="isFavorite(rec.recipe) ? 'currentColor' : 'none'" />
+              </button>
             </div>
           </div>
+
+          <div class="p-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ rec.recipe.title }}</h3>
+            
+            <!-- Match Score -->
+            <div class="mb-3">
+              <div class="flex items-center">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                  <div class="bg-indigo-600 h-2.5 rounded-full" :style="{ width: `${rec.normalized_score * 100}%` }"></div>
+                </div>
+                <span class="ml-2 text-sm font-medium text-gray-600">
+                  {{ Math.round(rec.normalized_score * 100) }}% Match
+                </span>
+              </div>
+            </div>
+
+            <!-- Recipe Details -->
+            <div class="space-y-2">
+              <div class="flex items-center text-sm text-gray-600">
+                <Clock class="h-4 w-4 mr-1" />
+                <span>{{ rec.recipe.cooking_time || '?' }} mins</span>
+                <span class="mx-2">•</span>
+                <span class="capitalize">{{ rec.recipe.difficulty }}</span>
+              </div>
+              
+              <!-- Cuisine Tags -->
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="cuisine in rec.recipe.cuisines"
+                  :key="cuisine"
+                  class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
+                >
+                  {{ cuisine }}
+                </span>
+              </div>
+
+              <!-- Dietary Tags -->
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="tag in rec.recipe.tags"
+                  :key="tag"
+                  class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
+
+            <button
+              @click="$router.push(`/recipe/${rec.recipe.id}`)"
+              class="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              View Recipe
+            </button>
+          </div>
         </div>
+      </div>
+
+      <!-- No Results Message -->
+      <div v-else-if="!loading && selectedIngredients.length > 0" class="mt-8 text-center">
+        <p class="text-gray-600">No recommendations found. Try adding different ingredients!</p>
+      </div>
+
+      <!-- Status Message -->
+      <div v-if="statusMessage" class="mt-4 p-4 bg-white rounded-md">
+        <p class="text-sm text-gray-700">{{ statusMessage }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
 
-body {
-  font-family: 'Poppins', sans-serif;
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

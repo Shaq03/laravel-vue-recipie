@@ -6,17 +6,64 @@ use App\Models\Recipe;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class RecipeController extends Controller
 {
     public function index(): JsonResponse
     {
         try {
-            $recipes = Recipe::latest()->get();
-            return response()->json(['recipes' => $recipes]);
+            // Get only user-created recipes, excluding AI-generated ones
+            $recipes = Recipe::where('source', 'user')
+                ->with(['user', 'ratings', 'favorites'])
+                ->latest()
+                ->paginate(12);
+
+            return response()->json([
+                'recipes' => $recipes
+            ]);
         } catch (\Exception $e) {
             Log::error('Error retrieving recipes: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to retrieve recipes'], 500);
+        }
+    }
+
+    public function show($id): JsonResponse
+    {
+        try {
+            // Try to find the recipe regardless of source
+            $recipe = Recipe::with(['user', 'ratings', 'favoritedBy'])
+                ->findOrFail($id);
+
+            // Format the recipe data
+            $formattedRecipe = [
+                'id' => $recipe->id,
+                'title' => $recipe->title,
+                'description' => $recipe->description,
+                'ingredients' => $recipe->ingredients,
+                'instructions' => $recipe->instructions,
+                'cooking_time' => $recipe->cooking_time,
+                'servings' => $recipe->servings,
+                'difficulty' => $recipe->difficulty,
+                'image_url' => $recipe->image_url,
+                'cuisines' => $recipe->cuisines,
+                'tags' => $recipe->tags,
+                'dietary_restrictions' => $recipe->dietary_restrictions,
+                'average_rating' => $recipe->average_rating,
+                'total_ratings' => $recipe->total_ratings,
+                'is_favorited' => $recipe->is_favorited,
+                'created_at' => $recipe->created_at,
+                'updated_at' => $recipe->updated_at,
+                'user' => $recipe->user ? [
+                    'id' => $recipe->user->id,
+                    'name' => $recipe->user->name
+                ] : null
+            ];
+
+            return response()->json(['recipe' => $formattedRecipe]);
+        } catch (\Exception $e) {
+            Log::error('Error retrieving recipe: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to retrieve recipe'], 500);
         }
     }
 
@@ -26,43 +73,51 @@ class RecipeController extends Controller
             $validated = $request->validate([
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
-                'cooking_time' => 'required|string',
-                'servings' => 'required|integer',
-                'difficulty' => 'required|in:easy,medium,hard',
                 'ingredients' => 'required|array',
                 'instructions' => 'required|array',
-                'image_url' => 'nullable|string|url'
+                'cooking_time' => 'required|integer|min:1',
+                'difficulty' => 'required|in:easy,medium,hard',
+                'cuisines' => 'required|array',
+                'tags' => 'nullable|array',
+                'image' => 'nullable|string'
             ]);
 
-            $recipe = Recipe::create($validated);
-            return response()->json($recipe, 201);
+            $recipe = new Recipe($validated);
+            $recipe->user_id = Auth::id();
+            $recipe->source = 'user';
+            $recipe->save();
+
+            return response()->json([
+                'message' => 'Recipe created successfully',
+                'recipe' => $recipe
+            ], 201);
         } catch (\Exception $e) {
             Log::error('Error creating recipe: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to create recipe'], 500);
         }
     }
 
-    public function show(Recipe $recipe): JsonResponse
-    {
-        return response()->json($recipe);
-    }
-
     public function update(Request $request, Recipe $recipe): JsonResponse
     {
         try {
             $validated = $request->validate([
-                'title' => 'string|max:255',
-                'description' => 'string',
-                'cooking_time' => 'string',
-                'servings' => 'integer',
-                'difficulty' => 'in:easy,medium,hard',
-                'ingredients' => 'array',
-                'instructions' => 'array',
-                'image_url' => 'nullable|string|url'
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'ingredients' => 'required|array',
+                'instructions' => 'required|array',
+                'cooking_time' => 'required|integer|min:1',
+                'difficulty' => 'required|in:easy,medium,hard',
+                'cuisines' => 'required|array',
+                'tags' => 'nullable|array',
+                'image' => 'nullable|string'
             ]);
 
             $recipe->update($validated);
-            return response()->json($recipe);
+
+            return response()->json([
+                'message' => 'Recipe updated successfully',
+                'recipe' => $recipe
+            ]);
         } catch (\Exception $e) {
             Log::error('Error updating recipe: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to update recipe'], 500);
@@ -73,7 +128,10 @@ class RecipeController extends Controller
     {
         try {
             $recipe->delete();
-            return response()->json(null, 204);
+
+            return response()->json([
+                'message' => 'Recipe deleted successfully'
+            ]);
         } catch (\Exception $e) {
             Log::error('Error deleting recipe: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to delete recipe'], 500);

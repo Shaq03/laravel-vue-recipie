@@ -4,10 +4,16 @@ import axios from 'axios';
 // Add base URL for API requests
 axios.defaults.baseURL = 'http://localhost:8000';
 
+// Initialize axios headers if token exists
+const token = localStorage.getItem('token');
+if (token) {
+  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+}
+
 export default createStore({
   state: {
     user: JSON.parse(localStorage.getItem('user')) || null,
-    token: localStorage.getItem('token') || null,
+    token: token || null,
     recipes: [],
     userRecipes: [],
     loading: false,
@@ -50,6 +56,7 @@ export default createStore({
     SET_TOKEN(state, token) {
       state.token = token;
       localStorage.setItem('token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     },
     SET_FAVORITES(state, favorites) {
       state.favorites = favorites;
@@ -69,12 +76,14 @@ export default createStore({
       state.userRecipes = [];
       localStorage.removeItem('user');
       localStorage.removeItem('token');
+      delete axios.defaults.headers.common['Authorization'];
     }
   },
   
   actions: {
     // Initialize axios headers
     initializeAuth({ state, dispatch }) {
+      console.log('Initializing auth with token:', state.token);
       if (state.token) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
         // Fetch user-specific data
@@ -83,16 +92,44 @@ export default createStore({
       }
     },
 
-    async login({ commit, dispatch }, credentials) {
+    async register({ commit, dispatch }, credentials) {
       try {
-        const response = await axios.post('/api/login', credentials);
+        console.log('Attempting registration with:', credentials);
+        const response = await axios.post('/api/v1/register', credentials);
+        console.log('Registration response:', response.data);
+        
         commit('SET_USER', response.data.user);
         commit('SET_TOKEN', response.data.token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        
+        // Fetch user-specific data after registration
+        await dispatch('fetchUserRecipes');
+        await dispatch('fetchFavorites');
+      } catch (error) {
+        console.error('Registration error:', error.response?.data);
+        if (error.response?.status === 422) {
+          throw new Error(error.response.data.message || 'Registration failed');
+        }
+        throw error;
+      }
+    },
+
+    async login({ commit, dispatch }, credentials) {
+      try {
+        console.log('Attempting login with:', credentials);
+        const response = await axios.post('/api/v1/login', credentials);
+        console.log('Login response:', response.data);
+        
+        commit('SET_USER', response.data.user);
+        commit('SET_TOKEN', response.data.token);
+        
         // Fetch user-specific data after login
         await dispatch('fetchUserRecipes');
         await dispatch('fetchFavorites');
       } catch (error) {
+        console.error('Login error:', error.response?.data);
+        if (error.response?.status === 422) {
+          throw new Error(error.response.data.message || 'Invalid credentials');
+        }
         throw error;
       }
     },

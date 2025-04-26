@@ -4,68 +4,116 @@ namespace App\Http\Controllers;
 
 use App\Models\Recipe;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 
 class UserRecipeController extends Controller
 {
-    public function index(Request $request)
+    public function index(): JsonResponse
     {
-        $recipes = $request->user()->recipes;
-        return response()->json(['recipes' => $recipes]);
-    }
+        try {
+            // Get only user-created recipes for the authenticated user
+            $recipes = Recipe::where('user_id', Auth::id())
+                ->where('source', 'user')
+                ->with(['ratings', 'favorites'])
+                ->latest()
+                ->get();
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'cooking_time' => 'required|string',
-            'servings' => 'required|integer',
-            'difficulty' => 'required|string',
-            'ingredients' => 'required|array',
-            'instructions' => 'required|array',
-            'image_url' => 'nullable|string',
-        ]);
-
-        $recipe = $request->user()->recipes()->create($request->all());
-        return response()->json($recipe, 201);
-    }
-
-    public function show(Request $request, Recipe $recipe)
-    {
-        if ($recipe->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json([
+                'recipes' => $recipes
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to retrieve user recipes'], 500);
         }
-        return response()->json($recipe);
     }
 
-    public function update(Request $request, Recipe $recipe)
+    public function store(Request $request): JsonResponse
     {
-        if ($recipe->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        try {
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'ingredients' => 'required|array',
+                'instructions' => 'required|array',
+                'cooking_time' => 'required|integer|min:1',
+                'difficulty' => 'required|in:easy,medium,hard',
+                'cuisines' => 'required|array',
+                'tags' => 'nullable|array',
+                'image' => 'nullable|string'
+            ]);
+
+            $recipe = new Recipe($validated);
+            $recipe->user_id = Auth::id();
+            $recipe->source = 'user'; // Mark as user-created
+            $recipe->save();
+
+            return response()->json([
+                'message' => 'Recipe created successfully',
+                'recipe' => $recipe
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to create recipe'], 500);
         }
-
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'cooking_time' => 'required|string',
-            'servings' => 'required|integer',
-            'difficulty' => 'required|string',
-            'ingredients' => 'required|array',
-            'instructions' => 'required|array',
-            'image_url' => 'nullable|string',
-        ]);
-
-        $recipe->update($request->all());
-        return response()->json($recipe);
     }
 
-    public function destroy(Request $request, Recipe $recipe)
+    public function show(Recipe $recipe): JsonResponse
     {
-        if ($recipe->user_id !== $request->user()->id) {
+        // Check if user owns the recipe
+        if ($recipe->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $recipe->delete();
-        return response()->json(null, 204);
+        try {
+            $recipe->load(['ratings', 'favorites']);
+            return response()->json(['recipe' => $recipe]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to retrieve recipe'], 500);
+        }
+    }
+
+    public function update(Request $request, Recipe $recipe): JsonResponse
+    {
+        // Check if user owns the recipe
+        if ($recipe->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'ingredients' => 'required|array',
+                'instructions' => 'required|array',
+                'cooking_time' => 'required|integer|min:1',
+                'difficulty' => 'required|in:easy,medium,hard',
+                'cuisines' => 'required|array',
+                'tags' => 'nullable|array',
+                'image' => 'nullable|string'
+            ]);
+
+            $recipe->update($validated);
+
+            return response()->json([
+                'message' => 'Recipe updated successfully',
+                'recipe' => $recipe
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to update recipe'], 500);
+        }
+    }
+
+    public function destroy(Recipe $recipe): JsonResponse
+    {
+        // Check if user owns the recipe
+        if ($recipe->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $recipe->delete();
+            return response()->json(['message' => 'Recipe deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to delete recipe'], 500);
+        }
     }
 } 

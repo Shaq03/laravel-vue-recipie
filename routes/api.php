@@ -11,18 +11,18 @@ use App\Http\Controllers\UserRecipeController;
 use App\Http\Controllers\FavoriteController;
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/v1/register', [AuthController::class, 'register']);
+Route::post('/v1/login', [AuthController::class, 'login']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     // Auth routes
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/v1/logout', [AuthController::class, 'logout']);
+    Route::get('/v1/user', [AuthController::class, 'user']);
     
     // User profile routes
-    Route::put('/user/profile', [UserController::class, 'updateProfile']);
-    Route::put('/user/password', [UserController::class, 'updatePassword']);
+    Route::put('/v1/user/profile', [UserController::class, 'updateProfile']);
+    Route::put('/v1/user/password', [UserController::class, 'updatePassword']);
 
     // User recipes
     Route::get('/v1/user/recipes', [UserRecipeController::class, 'index']);
@@ -47,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // AI recommendations
         Route::post('/ai/recommendations', [AIRecommendationController::class, 'getRecommendations']);
+        Route::put('/ai/preferences', [AIRecommendationController::class, 'updatePreferences']);
+        Route::get('/ai/recipes/{recipe}', [AIRecommendationController::class, 'getRecipe']);
         
         // ML recommendations
         Route::get('/ml/recipes/{recipe}/similar', [MLRecommendationController::class, 'getSimilarRecipes']);
