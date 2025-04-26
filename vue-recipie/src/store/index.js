@@ -136,7 +136,9 @@ export default createStore({
         // Fetch updated favorites after toggling
         await dispatch('fetchFavorites');
       } catch (error) {
+        console.error('Error toggling favorite:', error.response?.data);
         commit('SET_ERROR', error.response?.data?.message || 'Failed to update favorite');
+        throw error;
       }
     },
 

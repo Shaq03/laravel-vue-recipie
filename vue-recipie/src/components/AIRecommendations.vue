@@ -11,7 +11,13 @@ const loading = ref(false);
 const error = ref(null);
 const recommendations = ref([]);
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
-const toggleFavorite = (recipe) => store.dispatch('toggleFavorite', recipe);
+const toggleFavorite = async (recipe) => {
+  try {
+    await store.dispatch('toggleFavorite', recipe);
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Failed to update favorite';
+  }
+};
 
 const addIngredient = () => {
   const ingredient = currentIngredient.value.trim().toLowerCase();
@@ -33,20 +39,14 @@ const removeIngredient = (index) => {
   selectedIngredients.value.splice(index, 1);
 };
 
-const generateUniqueId = (recipe) => {
-  // Create a unique ID based on the recipe content
-  const content = `${recipe.title}-${recipe.ingredients.join('-')}`;
-  // Use encodeURIComponent to handle all characters
-  const encoded = encodeURIComponent(content)
-    .replace(/%/g, '') // Remove % symbols
-    .replace(/[^a-zA-Z0-9]/g, '') // Keep only alphanumeric characters
-    .substring(0, 32); // Limit length to 32 characters
-  return `ai-${encoded}`;
-};
-
 const getRecommendations = async () => {
   if (selectedIngredients.value.length === 0) {
     error.value = 'Please add at least one ingredient';
+    return;
+  }
+
+  if (!store.getters.isAuthenticated) {
+    error.value = 'Please log in to get AI recommendations';
     return;
   }
 
@@ -63,6 +63,7 @@ const getRecommendations = async () => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
+        'Authorization': `Bearer ${store.state.token}`
       },
       body: JSON.stringify({
         ingredients: selectedIngredients.value
@@ -82,10 +83,7 @@ const getRecommendations = async () => {
       throw new Error('No recipes found in response');
     }
 
-    recommendations.value = data.recipes.map(recipe => ({
-      ...recipe,
-      id: generateUniqueId(recipe)
-    }));
+    recommendations.value = data.recipes;
 
   } catch (err) {
     console.error('Error getting recommendations:', err);

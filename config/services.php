@@ -40,4 +40,8 @@ return [
         'app_key' => env('EDAMAM_APP_KEY'),
     ],
 
+    'spoonacular' => [
+        'api_key' => env('SPOONACULAR_API_KEY'),
+    ],
+
 ];
