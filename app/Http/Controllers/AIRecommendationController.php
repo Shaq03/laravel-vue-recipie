@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use App\Models\Recipe;
+use Illuminate\Support\Str;
 
 class AIRecommendationController extends Controller
 {
@@ -34,66 +36,111 @@ class AIRecommendationController extends Controller
         $ingredients = array_map('strtolower', $request->ingredients);
 
         try {
+            Log::info('Attempting to get recipes for ingredients', ['ingredients' => $ingredients]);
+            
             // Get 3 different recipes
-            $response = Http::get('https://api.spoonacular.com/recipes/findByIngredients', [
+            $response = Http::withOptions([
+                'verify' => false // Disable SSL verification
+            ])->get('https://api.spoonacular.com/recipes/findByIngredients', [
                 'ingredients' => implode(',', $ingredients),
                 'number' => 3,
                 'ranking' => 1,
                 'ignorePantry' => true,
-                'apiKey' => 'b14545ea02124b069584d1b39e8eaf96'
+                'apiKey' => config('services.spoonacular.api_key')
             ]);
 
             if (!$response->successful()) {
                 Log::error('Spoonacular API error', [
                     'status' => $response->status(),
-                    'body' => $response->body()
+                    'body' => $response->body(),
+                    'ingredients' => $ingredients,
+                    'api_key' => substr(config('services.spoonacular.api_key'), 0, 5) . '...' // Log first 5 chars of API key
                 ]);
-                throw new \Exception('Failed to find recipes with these ingredients');
+                throw new \Exception('Failed to find recipes with these ingredients: ' . $response->body());
             }
 
             $recipesData = $response->json();
             
             if (empty($recipesData)) {
-                throw new \Exception('No recipes found with these ingredients');
+                Log::warning('No recipes found for ingredients', ['ingredients' => $ingredients]);
+                throw new \Exception('No recipes found with these ingredients. Try different ingredients.');
             }
+
+            Log::info('Found recipes', ['count' => count($recipesData)]);
 
             $recipes = [];
             foreach ($recipesData as $recipeData) {
-                // Get detailed recipe information
-                $recipeDetails = Http::get("https://api.spoonacular.com/recipes/{$recipeData['id']}/information", [
-                    'apiKey' => 'b14545ea02124b069584d1b39e8eaf96'
-                ]);
+                try {
+                    // Get detailed recipe information
+                    $recipeDetails = Http::withOptions([
+                        'verify' => false // Disable SSL verification
+                    ])->get("https://api.spoonacular.com/recipes/{$recipeData['id']}/information", [
+                        'apiKey' => config('services.spoonacular.api_key')
+                    ]);
 
-                if (!$recipeDetails->successful()) {
-                    continue; // Skip this recipe if details can't be fetched
+                    if (!$recipeDetails->successful()) {
+                        Log::warning('Failed to get recipe details', [
+                            'recipe_id' => $recipeData['id'],
+                            'status' => $recipeDetails->status(),
+                            'body' => $recipeDetails->body()
+                        ]);
+                        continue; // Skip this recipe if details can't be fetched
+                    }
+
+                    $details = $recipeDetails->json();
+
+                    // Get recipe instructions
+                    $instructions = [];
+                    if (isset($details['analyzedInstructions'][0]['steps'])) {
+                        $instructions = array_map(function($step) {
+                            return $step['step'];
+                        }, $details['analyzedInstructions'][0]['steps']);
+                    }
+
+                    // Create a unique slug for the recipe
+                    $slug = Str::slug($details['title']) . '-' . Str::random(6);
+
+                    // Save the recipe to the database
+                    $recipe = Recipe::create([
+                        'title' => $details['title'],
+                        'description' => $details['summary'] ?? 'No description available',
+                        'cooking_time' => $details['readyInMinutes'],
+                        'servings' => $details['servings'],
+                        'difficulty' => $this->determineDifficulty($details['readyInMinutes'], count($details['extendedIngredients'])),
+                        'ingredients' => array_map(function($ingredient) {
+                            return $ingredient['original'];
+                        }, $details['extendedIngredients']),
+                        'instructions' => $instructions,
+                        'image_url' => $details['image'] ?? null,
+                        'user_id' => $request->user()->id
+                    ]);
+
+                    $recipes[] = [
+                        'id' => $recipe->id,
+                        'title' => $recipe->title,
+                        'ingredients' => $recipe->ingredients,
+                        'instructions' => $recipe->instructions,
+                        'cooking_time' => $recipe->cooking_time,
+                        'servings' => $recipe->servings,
+                        'difficulty' => $recipe->difficulty,
+                        'image_url' => $recipe->image_url
+                    ];
+
+                } catch (\Exception $e) {
+                    Log::warning('Error processing recipe details', [
+                        'recipe_id' => $recipeData['id'],
+                        'error' => $e->getMessage()
+                    ]);
+                    continue;
                 }
-
-                $details = $recipeDetails->json();
-
-                // Get recipe instructions
-                $instructions = [];
-                if (isset($details['analyzedInstructions'][0]['steps'])) {
-                    $instructions = array_map(function($step) {
-                        return $step['step'];
-                    }, $details['analyzedInstructions'][0]['steps']);
-                }
-
-                $recipes[] = [
-                    'id' => $recipeData['id'],
-                    'title' => $details['title'],
-                    'ingredients' => array_map(function($ingredient) {
-                        return $ingredient['original'];
-                    }, $details['extendedIngredients']),
-                    'instructions' => $instructions,
-                    'cooking_time' => $details['readyInMinutes'],
-                    'servings' => $details['servings'],
-                    'difficulty' => $this->determineDifficulty($details['readyInMinutes'], count($details['extendedIngredients']))
-                ];
             }
 
             if (empty($recipes)) {
-                throw new \Exception('No valid recipes found with these ingredients');
+                Log::warning('No valid recipes found after processing', ['ingredients' => $ingredients]);
+                throw new \Exception('No valid recipes found with these ingredients. Try different ingredients.');
             }
+
+            Log::info('Successfully generated recipes', ['count' => count($recipes)]);
 
             return response()->json(['recipes' => $recipes])
                 ->header('Access-Control-Allow-Origin', 'http://localhost:5173')
@@ -103,11 +150,12 @@ class AIRecommendationController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to generate recipes', [
                 'error' => $e->getMessage(),
-                'ingredients' => $ingredients
+                'ingredients' => $ingredients,
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
-                'error' => 'Unable to generate recipes. Please try again with different ingredients.'
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -121,7 +169,7 @@ class AIRecommendationController extends Controller
                 'number' => 1,
                 'ranking' => 1,
                 'ignorePantry' => true,
-                'apiKey' => 'b14545ea02124b069584d1b39e8eaf96'
+                'apiKey' => config('services.spoonacular.api_key')
             ]);
 
             if (!$response->successful()) {
@@ -142,7 +190,7 @@ class AIRecommendationController extends Controller
             
             // Get detailed recipe information
             $recipeDetails = Http::get("https://api.spoonacular.com/recipes/{$recipeData['id']}/information", [
-                'apiKey' => 'b14545ea02124b069584d1b39e8eaf96'
+                'apiKey' => config('services.spoonacular.api_key')
             ]);
 
             if (!$recipeDetails->successful()) {
