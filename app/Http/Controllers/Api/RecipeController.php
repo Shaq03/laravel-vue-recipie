@@ -39,12 +39,20 @@ class RecipeController extends Controller
                 'image_url' => 'nullable|string|url'
             ]);
 
+            // Convert cooking_time from string (e.g., "30 minutes") to integer
+            $cookingTime = (int) preg_replace('/[^0-9]/', '', $validated['cooking_time']);
+            $validated['cooking_time'] = $cookingTime;
+
             // Convert servings to integer
             $validated['servings'] = (int) $validated['servings'];
 
             // Filter out empty values from arrays
             $validated['ingredients'] = array_filter($validated['ingredients']);
             $validated['instructions'] = array_filter($validated['instructions']);
+
+            // Set the user_id
+            $validated['user_id'] = auth()->id();
+            $validated['source'] = 'user';
 
             $recipe = Recipe::create($validated);
             
