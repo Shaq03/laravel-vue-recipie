@@ -257,7 +257,7 @@ const handleKeyDown = (event) => {
               <div class="flex justify-between text-sm text-gray-500 mb-4">
                 <span class="flex items-center">
                   <Clock class="w-5 h-5 mr-1" />
-                  {{ recipe.cooking_time }} mins
+                  {{ recipe.cooking_time }}
                 </span>
                 <span class="flex items-center">
                   <Users class="w-5 h-5 mr-1" />

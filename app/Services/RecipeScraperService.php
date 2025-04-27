@@ -50,6 +50,10 @@ class RecipeScraperService
             // Cache results for 24 hours
             Cache::put($cacheKey, $recipes, 60 * 24);
             
+            // After collecting all recipes from all sources and before returning:
+            if (count($recipes) > 3) {
+                $recipes = array_slice($recipes, 0, 3);
+            }
             return $recipes;
         } catch (\Exception $e) {
             Log::error('Recipe scraping failed', [
