@@ -52,9 +52,9 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // ML recommendations
         Route::get('/ml/recipes/{recipe}/similar', [MLRecommendationController::class, 'getSimilarRecipes']);
-        
-        // Web recipe routes
-        Route::post('/web/recipes/search', [WebRecipeController::class, 'searchByIngredients']);
-        Route::post('/web/recipes/save', [WebRecipeController::class, 'saveRecipe']);
     });
-}); 
+});
+
+// Web recipe routes
+Route::post('/web/recipes/search', [WebRecipeController::class, 'searchByIngredients']);
+Route::post('/web/recipes/save', [WebRecipeController::class, 'saveRecipe']); 

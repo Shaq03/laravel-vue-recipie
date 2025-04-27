@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useStore } from 'vuex';
-import { ChefHat, Search, Loader, X, Star, ExternalLink, Save, AlertTriangle } from 'lucide-vue-next';
+import { ChefHat, Search, Loader, X, Star, ExternalLink, Save, AlertTriangle, Clock, Users } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
 import axios from 'axios';
 
@@ -89,7 +89,7 @@ const searchRecipes = async () => {
   statusMessage.value = '';
   
   try {
-    const response = await axios.post('/v1/web/recipes/search', {
+    const response = await axios.post('/api/web/recipes/search', {
       ingredients: selectedIngredients.value
     });
     
@@ -121,7 +121,7 @@ const searchRecipes = async () => {
 
 const saveRecipe = async (recipe) => {
   try {
-    const response = await axios.post('/v1/web/recipes/save', recipe);
+    const response = await axios.post('/api/web/recipes/save', recipe);
     store.dispatch('addFavorite', response.data.recipe || response.data);
     alert(response.data.message || 'Recipe saved successfully!');
   } catch (err) {
@@ -243,7 +243,8 @@ const handleKeyDown = (event) => {
             class="bg-white rounded-xl shadow-lg overflow-hidden transition duration-200 hover:shadow-xl hover:-translate-y-1"
           >
             <div v-if="recipe.image_url" class="h-48 overflow-hidden">
-              <img :src="recipe.image_url" :alt="recipe.title" class="w-full h-full object-cover" />
+              <img :src="recipe.image_url" :alt="recipe.title" class="w-full h-full object-cover"
+                   @error="event => event.target.src = '/default-recipe.jpg'" />
             </div>
             <div v-else class="h-48 bg-gray-200 flex items-center justify-center">
               <ChefHat class="w-12 h-12 text-gray-400" />

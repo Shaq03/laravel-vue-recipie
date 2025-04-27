@@ -33,6 +33,14 @@ class RecipeScraperService
             $allRecipesResults = $this->searchAllRecipes($ingredients);
             $recipes = array_merge($recipes, $allRecipesResults);
             
+            // Search from Food Network
+            $foodNetworkResults = $this->searchFoodNetwork($ingredients);
+            $recipes = array_merge($recipes, $foodNetworkResults);
+            
+            // Search from Epicurious
+            $epicuriousResults = $this->searchEpicurious($ingredients);
+            $recipes = array_merge($recipes, $epicuriousResults);
+            
             // If no recipes found, try fallback search
             if (empty($recipes)) {
                 $fallbackResults = $this->fallbackSearch($ingredients);
@@ -468,5 +476,149 @@ class RecipeScraperService
         }
         
         return $filteredRecipes;
+    }
+    
+    /**
+     * Search Food Network website for recipes
+     * 
+     * @param array $ingredients
+     * @return array
+     */
+    private function searchFoodNetwork(array $ingredients): array
+    {
+        $searchQuery = implode('+', $ingredients);
+        $url = "https://www.foodnetwork.com/search/" . urlencode($searchQuery) . "-";
+        
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept' => 'text/html,application/xhtml+xml,application/xml',
+            ])->get($url);
+            
+            if ($response->failed()) {
+                throw new \Exception('Failed to fetch from Food Network: ' . $response->status());
+            }
+            
+            $html = $response->body();
+            
+            // Parse HTML
+            $dom = new DOMDocument();
+            @$dom->loadHTML($html);
+            $xpath = new DOMXPath($dom);
+            
+            $recipes = [];
+            
+            // Find recipe cards
+            $recipeCards = $xpath->query('//div[contains(@class, "o-Card")]');
+            
+            foreach ($recipeCards as $index => $card) {
+                if ($index >= 5) break; // Limit to 5 recipes per site
+                
+                $titleNode = $xpath->query('.//h3[contains(@class, "o-Card__a-Headline")]', $card)->item(0);
+                $linkNode = $xpath->query('.//a[contains(@class, "o-Card__a-Headline")]', $card)->item(0);
+                $imageNode = $xpath->query('.//img', $card)->item(0);
+                
+                if ($titleNode && $linkNode) {
+                    $title = trim($titleNode->textContent);
+                    $link = $linkNode->getAttribute('href');
+                    $imageUrl = $imageNode ? $imageNode->getAttribute('src') : null;
+                    
+                    // Get recipe details
+                    $recipeDetails = $this->getRecipeDetails($link);
+                    
+                    $recipes[] = [
+                        'title' => $title,
+                        'description' => $recipeDetails['description'] ?? 'A delicious recipe using your ingredients.',
+                        'cooking_time' => $recipeDetails['cooking_time'] ?? '30 mins',
+                        'servings' => $recipeDetails['servings'] ?? 4,
+                        'difficulty' => $recipeDetails['difficulty'] ?? 'medium',
+                        'ingredients' => $recipeDetails['ingredients'] ?? $ingredients,
+                        'instructions' => $recipeDetails['instructions'] ?? ['Cook according to your preference'],
+                        'image_url' => $imageUrl,
+                        'source_url' => $link
+                    ];
+                }
+            }
+            
+            return $recipes;
+        } catch (\Exception $e) {
+            Log::error('Food Network scraping failed', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return [];
+        }
+    }
+    
+    /**
+     * Search Epicurious website for recipes
+     * 
+     * @param array $ingredients
+     * @return array
+     */
+    private function searchEpicurious(array $ingredients): array
+    {
+        $searchQuery = implode('+', $ingredients);
+        $url = "https://www.epicurious.com/search/" . urlencode($searchQuery);
+        
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept' => 'text/html,application/xhtml+xml,application/xml',
+            ])->get($url);
+            
+            if ($response->failed()) {
+                throw new \Exception('Failed to fetch from Epicurious: ' . $response->status());
+            }
+            
+            $html = $response->body();
+            
+            // Parse HTML
+            $dom = new DOMDocument();
+            @$dom->loadHTML($html);
+            $xpath = new DOMXPath($dom);
+            
+            $recipes = [];
+            
+            // Find recipe cards
+            $recipeCards = $xpath->query('//article[contains(@class, "recipe-content-card")]');
+            
+            foreach ($recipeCards as $index => $card) {
+                if ($index >= 5) break; // Limit to 5 recipes per site
+                
+                $titleNode = $xpath->query('.//h4[contains(@class, "recipe-content-card__title")]', $card)->item(0);
+                $linkNode = $xpath->query('.//a[contains(@class, "recipe-content-card__title")]', $card)->item(0);
+                $imageNode = $xpath->query('.//img', $card)->item(0);
+                
+                if ($titleNode && $linkNode) {
+                    $title = trim($titleNode->textContent);
+                    $link = $linkNode->getAttribute('href');
+                    $imageUrl = $imageNode ? $imageNode->getAttribute('src') : null;
+                    
+                    // Get recipe details
+                    $recipeDetails = $this->getRecipeDetails($link);
+                    
+                    $recipes[] = [
+                        'title' => $title,
+                        'description' => $recipeDetails['description'] ?? 'A delicious recipe using your ingredients.',
+                        'cooking_time' => $recipeDetails['cooking_time'] ?? '30 mins',
+                        'servings' => $recipeDetails['servings'] ?? 4,
+                        'difficulty' => $recipeDetails['difficulty'] ?? 'medium',
+                        'ingredients' => $recipeDetails['ingredients'] ?? $ingredients,
+                        'instructions' => $recipeDetails['instructions'] ?? ['Cook according to your preference'],
+                        'image_url' => $imageUrl,
+                        'source_url' => $link
+                    ];
+                }
+            }
+            
+            return $recipes;
+        } catch (\Exception $e) {
+            Log::error('Epicurious scraping failed', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return [];
+        }
     }
 } 
