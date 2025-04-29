@@ -59,7 +59,7 @@ class WebRecipeController extends Controller
             ]);
             
             return response()->json([
-                'recipes' => $filteredRecipes,
+                'recipes' => array_values($filteredRecipes),
                 'count' => count($filteredRecipes),
                 'ingredients' => $ingredients,
                 'message' => count($filteredRecipes) > 0 
@@ -78,7 +78,7 @@ class WebRecipeController extends Controller
                 $fallbackRecipes = $this->recipeScraperService->filterRecipesByIngredients([], $request->ingredients ?? []);
                 
                 return response()->json([
-                    'recipes' => $fallbackRecipes,
+                    'recipes' => array_values($fallbackRecipes),
                     'count' => count($fallbackRecipes),
                     'ingredients' => $request->ingredients ?? [],
                     'message' => 'Error in recipe search. Showing suggested recipes instead.',
@@ -88,7 +88,8 @@ class WebRecipeController extends Controller
                 return response()->json([
                     'error' => 'Failed to search for recipes: ' . $e->getMessage(),
                     'recipes' => [],
-                    'count' => 0
+                    'count' => 0,
+                    'ingredients' => $request->ingredients ?? []
                 ], 500);
             }
         }
@@ -152,6 +153,46 @@ class WebRecipeController extends Controller
             
             return response()->json([
                 'error' => 'Failed to save recipe: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        try {
+            $ingredients = $request->input('ingredients', []);
+            
+            if (empty($ingredients)) {
+                return response()->json([
+                    'message' => 'No ingredients provided',
+                    'recipes' => []
+                ]);
+            }
+
+            $recipes = Recipe::where(function ($query) use ($ingredients) {
+                foreach ($ingredients as $ingredient) {
+                    $query->orWhereJsonContains('ingredients', $ingredient);
+                }
+            })
+            ->with(['user', 'ratings', 'favorites'])
+            ->latest()
+            ->paginate($request->input('per_page', 12));
+
+            return response()->json([
+                'recipes' => $recipes->items(),
+                'count' => $recipes->total(),
+                'ingredients' => $ingredients,
+                'message' => $recipes->total() > 0 
+                    ? 'Recipes found successfully!' 
+                    : 'No recipes found with these ingredients.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error searching recipes: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to search recipes',
+                'recipes' => [],
+                'count' => 0,
+                'ingredients' => $ingredients ?? []
             ], 500);
         }
     }

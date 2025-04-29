@@ -63,6 +63,9 @@ class AIRecommendationService
     public function getRecommendations(User $user, array $ingredients)
     {
         try {
+            // Reload recipe database to ensure we have the latest data
+            $this->initializeRecipeDatabase();
+            
             // Get user preferences
             $this->loadUserData($user);
 
@@ -80,27 +83,30 @@ class AIRecommendationService
             ];
 
             foreach ($recipes as $recipe) {
-                // First check cuisine preferences if set
-                if (!empty($this->userPreferences['preferred_cuisines'])) {
-                    $recipeCuisines = is_array($recipe->cuisines) ? $recipe->cuisines : json_decode($recipe->cuisines, true);
-                    $hasMatchingCuisine = false;
-                    foreach ($this->userPreferences['preferred_cuisines'] as $preferredCuisine) {
-                        if (in_array($preferredCuisine, $recipeCuisines)) {
-                            $hasMatchingCuisine = true;
-                            break;
+                // Skip if no ingredients provided and recipe doesn't match user preferences
+                if (empty($ingredients) && !empty($this->userPreferences)) {
+                    // First check cuisine preferences if set
+                    if (!empty($this->userPreferences['preferred_cuisines'])) {
+                        $recipeCuisines = is_array($recipe->cuisines) ? $recipe->cuisines : json_decode($recipe->cuisines, true);
+                        $hasMatchingCuisine = false;
+                        foreach ($this->userPreferences['preferred_cuisines'] as $preferredCuisine) {
+                            if (in_array(strtolower($preferredCuisine), array_map('strtolower', $recipeCuisines))) {
+                                $hasMatchingCuisine = true;
+                                break;
+                            }
                         }
-                    }
-                    if (!$hasMatchingCuisine) {
-                        $filteredOut['cuisine']++;
-                        continue;
+                        if (!$hasMatchingCuisine) {
+                            $filteredOut['cuisine']++;
+                            continue;
+                        }
                     }
                 }
 
-                // Calculate ingredient match score
-                $ingredientScore = $this->calculateIngredientMatchScore($recipe, $ingredients);
+                // Calculate ingredient match score if ingredients provided
+                $ingredientScore = empty($ingredients) ? 1 : $this->calculateIngredientMatchScore($recipe, $ingredients);
                 
-                // Skip recipes with no ingredient matches
-                if ($ingredientScore <= 0) {
+                // Skip recipes with no ingredient matches if ingredients were provided
+                if (!empty($ingredients) && $ingredientScore <= 0) {
                     $filteredOut['ingredients']++;
                     continue;
                 }
@@ -114,12 +120,14 @@ class AIRecommendationService
                     }
                 }
 
-                // Strictly check difficulty level
-                $skillLevel = strtolower($this->userPreferences['cooking_skill_level'] ?? 'beginner');
-                $difficulty = strtolower($recipe->difficulty ?? 'medium');
-                if (!$this->isRecipeSuitableForSkillLevel($skillLevel, $difficulty)) {
-                    $filteredOut['skill_level']++;
-                    continue;
+                // Check difficulty level if user preference exists
+                if (!empty($this->userPreferences['cooking_skill_level'])) {
+                    $skillLevel = strtolower($this->userPreferences['cooking_skill_level']);
+                    $difficulty = strtolower($recipe->difficulty);
+                    if (!$this->isRecipeSuitableForSkillLevel($skillLevel, $difficulty)) {
+                        $filteredOut['skill_level']++;
+                        continue;
+                    }
                 }
 
                 $recommendations[] = [
@@ -129,7 +137,7 @@ class AIRecommendationService
                 ];
             }
 
-            // If no recommendations found, generate appropriate error message
+            // Log if no recommendations found
             if (empty($recommendations)) {
                 $errorMessage = 'No recipes found that match your criteria. ';
                 
@@ -146,7 +154,14 @@ class AIRecommendationService
                     $errorMessage .= 'No recipes match your preferred cuisines. ';
                 }
 
-                throw new \Exception($errorMessage);
+                Log::info('No recommendations found', [
+                    'user_id' => $user->id,
+                    'ingredients' => $ingredients,
+                    'filtered_out' => $filteredOut,
+                    'message' => $errorMessage
+                ]);
+
+                return [];
             }
 
             // Sort by score
@@ -201,6 +216,12 @@ class AIRecommendationService
 
         $matches = 0;
         $totalWeight = count($searchIngredients);
+        
+        // Return 0 if no ingredients to match against
+        if ($totalWeight === 0) {
+            return 0;
+        }
+
         $matchedIngredients = [];
 
         foreach ($searchIngredients as $searchIngredient) {
@@ -630,13 +651,13 @@ class AIRecommendationService
 
     private function isRecipeSuitableForSkillLevel($skillLevel, $difficulty)
     {
-        $skillLevelMap = [
+        $skillLevels = [
             'beginner' => ['easy'],
             'intermediate' => ['easy', 'medium'],
             'advanced' => ['easy', 'medium', 'hard']
         ];
 
-        return in_array($difficulty, $skillLevelMap[$skillLevel] ?? ['easy']);
+        return in_array($difficulty, $skillLevels[$skillLevel] ?? []);
     }
 
     private function calculatePersonalizationScore($recipe)

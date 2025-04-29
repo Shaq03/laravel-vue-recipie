@@ -168,4 +168,42 @@ class Recipe extends Model
         }
         return $this->favoritedBy()->where('user_id', auth()->id())->exists();
     }
+
+    public static function rules()
+    {
+        return [
+            'user_id' => 'required|exists:users,id',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'ingredients' => 'required|array|min:1',
+            'ingredients.*' => 'required|string',
+            'instructions' => 'required|array|min:1',
+            'instructions.*' => 'required|string',
+            'cooking_time' => 'required|integer|min:0',
+            'difficulty' => 'required|in:easy,medium,hard',
+            'cuisines' => 'required|array',
+            'cuisines.*' => 'required|string',
+            'tags' => 'nullable|array',
+            'tags.*' => 'required|string',
+            'servings' => 'required|integer|min:1',
+            'preparation_time' => 'nullable|integer|min:0',
+            'total_time' => 'nullable|integer|min:0',
+            'calories' => 'nullable|numeric|min:0',
+            'protein' => 'nullable|numeric|min:0',
+            'carbs' => 'nullable|numeric|min:0',
+            'fat' => 'nullable|numeric|min:0',
+            'fiber' => 'nullable|numeric|min:0',
+            'sugar' => 'nullable|numeric|min:0',
+            'sodium' => 'nullable|numeric|min:0',
+            'cholesterol' => 'nullable|numeric|min:0',
+            'is_vegetarian' => 'boolean',
+            'is_vegan' => 'boolean',
+            'is_gluten_free' => 'boolean',
+            'is_dairy_free' => 'boolean',
+            'is_nut_free' => 'boolean',
+            'is_halal' => 'boolean',
+            'is_kosher' => 'boolean',
+            'seasonal' => 'boolean'
+        ];
+    }
 } 
