@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -48,7 +49,7 @@ class User extends Authenticatable
     /**
      * Get the recipes created by the user.
      */
-    public function recipes()
+    public function recipes(): HasMany
     {
         return $this->hasMany(Recipe::class);
     }
@@ -73,8 +74,13 @@ class User extends Authenticatable
     /**
      * Get the user's cooking history.
      */
-    public function cookingHistory()
+    public function cookingHistory(): HasMany
     {
         return $this->hasMany(CookingHistory::class);
+    }
+
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(RecipeRating::class);
     }
 }
