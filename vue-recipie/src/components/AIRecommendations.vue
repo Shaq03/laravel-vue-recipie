@@ -3,14 +3,14 @@ import { ref, reactive, computed } from 'vue';
 import { useStore } from 'vuex';
 import { ChefHat, Search, Loader, X, Star, Clock, Users, Settings } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
-import axios from 'axios';
+import axios from '../axios';
 
 const store = useStore();
 const currentIngredient = ref('');
 const selectedIngredients = ref([]);
 const loading = ref(false);
 const error = ref(null);
-const recommendations = ref([]);
+const recommendations = computed(() => store.getters.aiSearchResults);
 const showPreferences = ref(false);
 const statusMessage = ref('');
 const searched = ref(false);
@@ -77,7 +77,7 @@ const getRecommendations = async () => {
 
   loading.value = true;
   error.value = null;
-  recommendations.value = [];
+  store.commit('CLEAR_AI_SEARCH_RESULTS');
 
   try {
     const token = store.state.token;
@@ -99,7 +99,7 @@ const getRecommendations = async () => {
       if (response.data.error) {
         error.value = response.data.error;
       } else if (response.data.recommendations) {
-        recommendations.value = response.data.recommendations;
+        store.commit('SET_AI_SEARCH_RESULTS', response.data.recommendations);
       }
     }
   } catch (err) {
@@ -181,26 +181,10 @@ const searchRecipes = async () => {
   
   loading.value = true;
   error.value = null;
-  recommendations.value = [];
+  searched.value = true;
   
   try {
-    const response = await axios.post('/api/v1/ai/recommendations', {
-      ingredients: selectedIngredients.value
-    }, {
-      headers: {
-        'Authorization': `Bearer ${store.state.token}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.data) {
-      if (response.data.error) {
-        error.value = response.data.error;
-      } else if (response.data.recommendations) {
-        recommendations.value = response.data.recommendations;
-      }
-    }
+    await store.dispatch('searchAIRecipes', selectedIngredients.value);
     
     // Scroll to results
     setTimeout(() => {
@@ -211,25 +195,19 @@ const searchRecipes = async () => {
     }, 100);
   } catch (err) {
     console.error('Error searching recipes:', err);
-    if (err.response?.status === 401) {
-      // Token might be expired, try to refresh or logout
-      store.dispatch('logout');
-      error.value = 'Your session has expired. Please log in again.';
-    } else if (err.response?.status === 500) {
-      // Show friendly message for server errors
-      error.value = `We couldn't find any recipes matching your ingredients: ${selectedIngredients.value.join(', ')}. 
-      
-Try these suggestions:
-• Add more common ingredients
-• Check for spelling mistakes
-• Try different ingredient combinations
-• Browse our recipe collection for inspiration`;
-    } else {
-      error.value = err.response?.data?.error || 'Failed to search for recipes. Please try again.';
-    }
+    error.value = err.response?.data?.error || 'Failed to search for recipes. Please try again.';
   } finally {
     loading.value = false;
   }
+};
+
+const clearIngredients = () => {
+  selectedIngredients.value = [];
+  store.commit('CLEAR_AI_SEARCH_RESULTS');
+  searched.value = false;
+  error.value = null;
+  statusMessage.value = '';
+  console.log('Cleared ingredients and search results');
 };
 </script>
 
@@ -294,14 +272,24 @@ Try these suggestions:
               Preferences
             </button>
 
-            <button
-              type="submit"
-              :disabled="loading || selectedIngredients.length === 0"
-              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out"
-              :class="{ 'opacity-75 cursor-not-allowed': loading || selectedIngredients.length === 0 }"
+            <button 
+              @click="clearIngredients" 
+              class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-lg transition duration-200"
+              :disabled="selectedIngredients.length === 0"
             >
-              <Loader v-if="loading" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
-              {{ loading ? 'Searching...' : 'Get Recommendations' }}
+              Clear All
+            </button>
+          </div>
+
+          <div class="mt-4">
+            <button
+              @click="searchRecipes" 
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition duration-200 flex items-center justify-center"
+              :disabled="loading || selectedIngredients.length === 0"
+            >
+              <Search v-if="!loading" class="w-5 h-5 mr-2" />
+              <Loader v-else class="w-5 h-5 mr-2 animate-spin" />
+              <span>{{ loading ? 'Searching...' : 'Get Recommendations' }}</span>
             </button>
           </div>
         </form>
@@ -446,7 +434,7 @@ Try these suggestions:
             </div>
 
             <button
-              @click="$router.push(`/recipe/${rec.recipe.id}`)"
+              @click="$router.push(`/recipes/${rec.recipe.id}`)"
               class="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               View Recipe

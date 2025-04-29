@@ -27,29 +27,35 @@ const fetchRecipe = async () => {
   recipe.value = null;
   try {
     const id = route.params.recipeId || route.params.id || route.params.recipe_id;
-    let response = null;
+    console.log('Fetching recipe with ID:', id);
     
-    // First try to get the recipe from the main recipes endpoint
+    // First try to get the recipe from the AI recipes endpoint
     try {
-      response = await axios.get(`/api/v1/recipes/${id}`);
-      if (response.data && response.data.recipe) {
-        recipe.value = response.data.recipe;
+      const aiResponse = await axios.get(`/api/v1/ai/recipes/${id}`);
+      console.log('AI recipe response:', aiResponse.data);
+      if (aiResponse.data && aiResponse.data.recipe) {
+        recipe.value = aiResponse.data.recipe;
         return;
+      } else {
+        console.warn('AI endpoint returned 200 but no recipe:', aiResponse.data);
       }
     } catch (e) {
-      console.log('Recipe not found in main recipes, trying AI recipes...');
+      console.log('Recipe not found in AI recipes, trying main recipes...', e);
     }
     
-    // If not found, try the AI recipes endpoint
+    // If not found, try the main recipes endpoint
     try {
-      response = await axios.get(`/api/v1/ai/recipes/${id}`);
-      if (response.data && response.data.recipe) {
-        recipe.value = response.data.recipe;
+      const mainResponse = await axios.get(`/api/v1/recipes/${id}`);
+      console.log('Main recipe response:', mainResponse.data);
+      if (mainResponse.data && mainResponse.data.recipe) {
+        recipe.value = mainResponse.data.recipe;
         return;
+      } else {
+        console.warn('Main endpoint returned 200 but no recipe:', mainResponse.data);
       }
-    } catch (aiErr) {
-      console.error('Error fetching AI recipe:', aiErr);
-      if (aiErr.response?.status === 404) {
+    } catch (mainErr) {
+      console.error('Error fetching main recipe:', mainErr);
+      if (mainErr.response?.status === 404) {
         error.value = 'Recipe not found. Please try generating new recommendations.';
       } else {
         error.value = 'Failed to load recipe. Please try again.';
@@ -58,7 +64,7 @@ const fetchRecipe = async () => {
     }
     
     // If we get here, the recipe wasn't found in either place
-    error.value = 'Recipe not found. Please try generating new recommendations.';
+    error.value = 'Recipe not found or API returned unexpected data. Please try generating new recommendations.';
   } catch (err) {
     console.error('Error fetching recipe:', err);
     error.value = err.response?.data?.message || 'Failed to load recipe. Please try again.';

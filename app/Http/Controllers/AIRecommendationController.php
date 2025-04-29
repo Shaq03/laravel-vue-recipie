@@ -53,7 +53,7 @@ class AIRecommendationController extends Controller
                 Log::warning('No AI recipes found in database');
                 return response()->json([
                     'error' => 'No recipes available for recommendations. Please try again later.'
-                ], 404);
+                ], 404)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
             }
 
             $recommendations = $this->aiService->getRecommendations(
@@ -68,12 +68,12 @@ class AIRecommendationController extends Controller
                 ]);
                 return response()->json([
                     'error' => 'No recipes found matching your ingredients. Try adding different ingredients.'
-                ], 404);
+                ], 404)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
             }
 
             return response()->json([
                 'recommendations' => $recommendations
-            ]);
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         } catch (\Exception $e) {
             Log::error('AI Recommendation Error', [
                 'error' => $e->getMessage(),
@@ -111,7 +111,7 @@ class AIRecommendationController extends Controller
             return response()->json([
                 'message' => 'Preferences updated successfully',
                 'preferences' => $preferences
-            ]);
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         } catch (\Exception $e) {
             Log::error('Update Preferences Error', [
                 'error' => $e->getMessage(),
@@ -121,7 +121,7 @@ class AIRecommendationController extends Controller
 
             return response()->json([
                 'error' => 'Failed to update preferences. Please try again.'
-            ], 500);
+            ], 500)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         }
     }
 
@@ -180,7 +180,8 @@ class AIRecommendationController extends Controller
                 }, $details['analyzedInstructions'][0]['steps']),
                 'cooking_time' => $details['readyInMinutes'] . ' minutes',
                 'difficulty' => $this->determineDifficulty($details['readyInMinutes'], count($details['extendedIngredients'])),
-                'servings' => $details['servings']
+                'servings' => $details['servings'],
+                'source' => 'ai'
             ];
         } catch (\Exception $e) {
             Log::error('Failed to generate recipe', [
@@ -495,7 +496,7 @@ class AIRecommendationController extends Controller
         }
     }
 
-    public function getRecipe($id)
+    public function show($id)
     {
         try {
             $recipe = Recipe::where('source', 'ai')
@@ -504,7 +505,9 @@ class AIRecommendationController extends Controller
 
             return response()->json([
                 'recipe' => $recipe
-            ]);
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+              ->header('Pragma', 'no-cache')
+              ->header('Expires', '0');
         } catch (\Exception $e) {
             Log::error('AI Recipe Retrieval Error', [
                 'error' => $e->getMessage(),
@@ -513,7 +516,9 @@ class AIRecommendationController extends Controller
 
             return response()->json([
                 'error' => 'Recipe not found'
-            ], 404);
+            ], 404)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+              ->header('Pragma', 'no-cache')
+              ->header('Expires', '0');
         }
     }
 } 

@@ -41,7 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Recipe routes
         Route::get('/recipes', [RecipeController::class, 'index']);
         Route::post('/recipes', [RecipeController::class, 'store']);
-        Route::get('/recipes/{recipe}', [RecipeController::class, 'show']);
+        Route::get('/recipes/{id}', [RecipeController::class, 'show']);
         Route::put('/recipes/{recipe}', [RecipeController::class, 'update']);
         Route::delete('/recipes/{recipe}', [RecipeController::class, 'destroy']);
 
@@ -52,6 +52,10 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // ML recommendations
         Route::get('/ml/recipes/{recipe}/similar', [MLRecommendationController::class, 'getSimilarRecipes']);
+
+        // Web recipe routes
+        Route::post('/web/recipes/search', [WebRecipeController::class, 'searchByIngredients']);
+        Route::post('/web/recipes/save', [WebRecipeController::class, 'saveRecipe']);
     });
 });
 

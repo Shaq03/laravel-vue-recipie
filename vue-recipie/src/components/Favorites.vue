@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
-import { Star, Clock, Users, ChefHat } from 'lucide-vue-next';
+import { Star, Clock, Users, ChefHat, ExternalLink } from 'lucide-vue-next';
 
 const store = useStore();
 const favorites = computed(() => store.getters.allFavorites);
@@ -81,7 +81,18 @@ onMounted(() => {
                 </ul>
               </div>
               
-              <div>
+              <div v-if="recipe.source === 'web' && recipe.source_url">
+                <a 
+                  :href="recipe.source_url" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <ExternalLink class="w-5 h-5 mr-2" />
+                  View Original Recipe
+                </a>
+              </div>
+              <div v-else>
                 <h4 class="font-medium text-lg text-indigo-600">Instructions:</h4>
                 <ol class="mt-2 list-decimal list-inside text-gray-600">
                   <li v-for="(instruction, index) in recipe.instructions" :key="index">

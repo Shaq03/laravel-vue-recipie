@@ -1,5 +1,5 @@
 import { createStore } from 'vuex';
-import axios from 'axios';
+import axios from '../axios';
 
 // Add base URL for API requests
 axios.defaults.baseURL = 'http://localhost:8000';
@@ -13,12 +13,14 @@ if (token) {
 export default createStore({
   state: {
     user: JSON.parse(localStorage.getItem('user')) || null,
-    token: token || null,
+    token: localStorage.getItem('token') || null,
     recipes: [],
     userRecipes: [],
     loading: false,
     error: null,
     favorites: [],
+    aiSearchResults: [],
+    webSearchResults: [],
   },
   
   getters: {
@@ -30,6 +32,8 @@ export default createStore({
     },
     allFavorites: (state) => state.favorites,
     currentUser: state => state.user,
+    aiSearchResults: state => state.aiSearchResults,
+    webSearchResults: state => state.webSearchResults,
   },
   
   mutations: {
@@ -50,13 +54,21 @@ export default createStore({
       state.userRecipes.push(recipe);
     },
     SET_USER(state, user) {
+      console.log('Setting user:', user);
       state.user = user;
       localStorage.setItem('user', JSON.stringify(user));
     },
     SET_TOKEN(state, token) {
+      console.log('Setting token:', token);
       state.token = token;
-      localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      if (token) {
+        localStorage.setItem('token', token);
+        // Set the token in axios headers
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } else {
+        localStorage.removeItem('token');
+        delete axios.defaults.headers.common['Authorization'];
+      }
     },
     SET_FAVORITES(state, favorites) {
       state.favorites = favorites;
@@ -77,19 +89,36 @@ export default createStore({
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       delete axios.defaults.headers.common['Authorization'];
-    }
+    },
+    SET_AI_SEARCH_RESULTS(state, results) {
+      state.aiSearchResults = results;
+    },
+    SET_WEB_SEARCH_RESULTS(state, results) {
+      state.webSearchResults = results;
+    },
+    CLEAR_AI_SEARCH_RESULTS(state) {
+      state.aiSearchResults = [];
+    },
+    CLEAR_WEB_SEARCH_RESULTS(state) {
+      state.webSearchResults = [];
+    },
   },
   
   actions: {
-    // Initialize axios headers
-    initializeAuth({ state, dispatch }) {
+    // Initialize auth
+    initializeAuth({ state, commit }) {
       console.log('Initializing auth with token:', state.token);
-      if (state.token) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+      const token = localStorage.getItem('token');
+      if (token) {
+        console.log('Found token in localStorage, setting it...');
+        commit('SET_TOKEN', token);
         // Fetch user-specific data
-        dispatch('fetchUserRecipes');
-        dispatch('fetchFavorites');
+        return Promise.all([
+          this.dispatch('fetchUserRecipes'),
+          this.dispatch('fetchFavorites')
+        ]);
       }
+      return Promise.resolve();
     },
 
     async register({ commit, dispatch }, credentials) {
@@ -135,16 +164,23 @@ export default createStore({
     },
 
     async logout({ commit }) {
-      commit('CLEAR_USER_DATA');
-      delete axios.defaults.headers.common['Authorization'];
+      try {
+        await axios.post('/api/v1/logout');
+      } catch (error) {
+        console.error('Logout error:', error);
+      } finally {
+        commit('CLEAR_USER_DATA');
+      }
     },
 
     async fetchUserRecipes({ commit }) {
       commit('SET_LOADING', true);
       try {
+        console.log('Fetching user recipes with token:', axios.defaults.headers.common['Authorization']);
         const response = await axios.get('/api/v1/user/recipes');
         commit('SET_USER_RECIPES', response.data.recipes);
       } catch (error) {
+        console.error('Error fetching user recipes:', error.response?.data);
         commit('SET_ERROR', error.response?.data?.message || 'Failed to fetch user recipes');
       } finally {
         commit('SET_LOADING', false);
@@ -154,9 +190,11 @@ export default createStore({
     async fetchFavorites({ commit }) {
       commit('SET_LOADING', true);
       try {
+        console.log('Fetching favorites with token:', axios.defaults.headers.common['Authorization']);
         const response = await axios.get('/api/v1/user/favorites');
         commit('SET_FAVORITES', response.data.favorites);
       } catch (error) {
+        console.error('Error fetching favorites:', error.response?.data);
         commit('SET_ERROR', error.response?.data?.message || 'Failed to fetch favorites');
       } finally {
         commit('SET_LOADING', false);
@@ -184,9 +222,11 @@ export default createStore({
       commit('SET_ERROR', null);
       
       try {
+        console.log('Fetching recipes with token:', axios.defaults.headers.common['Authorization']);
         const response = await axios.get('/api/v1/recipes');
         commit('SET_RECIPES', response.data.recipes);
       } catch (error) {
+        console.error('Error fetching recipes:', error.response?.data);
         const errorMessage = error.response?.data?.message || 'Failed to fetch recipes';
         commit('SET_ERROR', errorMessage);
         throw error;
@@ -218,6 +258,34 @@ export default createStore({
       } finally {
         commit('SET_LOADING', false);
       }
-    }
+    },
+
+    async searchAIRecipes({ commit }, ingredients) {
+      commit('SET_LOADING', true);
+      try {
+        const response = await axios.post('/api/v1/ai/recommendations', { ingredients });
+        commit('SET_AI_SEARCH_RESULTS', response.data.recommendations || []);
+        return response.data;
+      } catch (error) {
+        commit('SET_ERROR', error.response?.data?.error || 'Failed to search recipes');
+        throw error;
+      } finally {
+        commit('SET_LOADING', false);
+      }
+    },
+
+    async searchWebRecipes({ commit }, ingredients) {
+      commit('SET_LOADING', true);
+      try {
+        const response = await axios.post('/api/v1/web/recipes/search', { ingredients });
+        commit('SET_WEB_SEARCH_RESULTS', response.data.recipes || []);
+        return response.data;
+      } catch (error) {
+        commit('SET_ERROR', error.response?.data?.error || 'Failed to search recipes');
+        throw error;
+      } finally {
+        commit('SET_LOADING', false);
+      }
+    },
   }
 }); 

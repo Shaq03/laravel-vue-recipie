@@ -56,7 +56,8 @@ class Recipe extends Model
         'total_views',
         'last_cooked_at',
         'image_url',
-        'dietary_restrictions'
+        'dietary_restrictions',
+        'source_url'
     ];
 
     /**

@@ -31,9 +31,11 @@ class RecipeController extends Controller
     public function show($id): JsonResponse
     {
         try {
-            // Try to find the recipe regardless of source
-            $recipe = Recipe::with(['user', 'ratings', 'favoritedBy'])
-                ->findOrFail($id);
+            $recipe = Recipe::with([
+                'ratings',
+                'favoritedBy',
+                'user'
+            ])->findOrFail($id);
 
             // Format the recipe data
             $formattedRecipe = [
@@ -49,9 +51,9 @@ class RecipeController extends Controller
                 'cuisines' => $recipe->cuisines,
                 'tags' => $recipe->tags,
                 'dietary_restrictions' => $recipe->dietary_restrictions,
-                'average_rating' => $recipe->average_rating,
-                'total_ratings' => $recipe->total_ratings,
-                'is_favorited' => $recipe->is_favorited,
+                'average_rating' => $recipe->ratings->avg('rating'),
+                'total_ratings' => $recipe->ratings->count(),
+                'is_favorited' => $recipe->favoritedBy->contains(auth()->id()),
                 'created_at' => $recipe->created_at,
                 'updated_at' => $recipe->updated_at,
                 'user' => $recipe->user ? [
@@ -60,10 +62,16 @@ class RecipeController extends Controller
                 ] : null
             ];
 
-            return response()->json(['recipe' => $formattedRecipe]);
+            return response()->json(['recipe' => $formattedRecipe])
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         } catch (\Exception $e) {
             Log::error('Error retrieving recipe: ' . $e->getMessage());
-            return response()->json(['message' => 'Failed to retrieve recipe'], 500);
+            return response()->json(['message' => 'Failed to retrieve recipe'], 500)
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         }
     }
 

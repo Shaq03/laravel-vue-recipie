@@ -127,8 +127,12 @@ class WebRecipeController extends Controller
                 ]);
             }
             
-            // Create a new recipe
-            $recipe = Recipe::create($request->all());
+            // Create a new recipe with source set to 'web'
+            $recipeData = $request->all();
+            $recipeData['source'] = 'web';
+            $recipeData['user_id'] = auth()->id();
+            
+            $recipe = Recipe::create($recipeData);
             
             Log::info('Recipe saved successfully', [
                 'recipe_id' => $recipe->id,

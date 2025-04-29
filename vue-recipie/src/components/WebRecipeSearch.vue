@@ -3,14 +3,14 @@ import { ref, computed } from 'vue';
 import { useStore } from 'vuex';
 import { ChefHat, Search, Loader, X, Star, ExternalLink, Save, AlertTriangle, Clock, Users } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
-import axios from 'axios';
+import axios from '../axios';
 
 const store = useStore();
 const currentIngredient = ref('');
 const selectedIngredients = ref([]);
 const loading = ref(false);
 const error = ref(null);
-const recipes = ref([]);
+const recipes = computed(() => store.getters.webSearchResults);
 const searched = ref(false);
 const statusMessage = ref('');
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
@@ -71,7 +71,7 @@ const removeIngredient = (index) => {
 
 const clearIngredients = () => {
   selectedIngredients.value = [];
-  recipes.value = [];
+  store.commit('CLEAR_WEB_SEARCH_RESULTS');
   searched.value = false;
   error.value = null;
   statusMessage.value = '';
@@ -85,17 +85,10 @@ const searchRecipes = async () => {
   
   loading.value = true;
   error.value = null;
-  recipes.value = [];
-  statusMessage.value = '';
+  searched.value = true;
   
   try {
-    const response = await axios.post('/api/web/recipes/search', {
-      ingredients: selectedIngredients.value
-    });
-    
-    recipes.value = response.data.recipes || [];
-    statusMessage.value = response.data.message || '';
-    searched.value = true;
+    await store.dispatch('searchWebRecipes', selectedIngredients.value);
     
     // Scroll to results
     setTimeout(() => {
@@ -107,13 +100,6 @@ const searchRecipes = async () => {
   } catch (err) {
     console.error('Error searching recipes:', err);
     error.value = err.response?.data?.error || 'Failed to search for recipes. Please try again.';
-    
-    // Try to get recipes from error response if available
-    if (err.response?.data?.recipes && err.response.data.recipes.length > 0) {
-      recipes.value = err.response.data.recipes;
-      statusMessage.value = err.response.data.message || 'Showing suggested recipes instead.';
-      searched.value = true;
-    }
   } finally {
     loading.value = false;
   }
@@ -121,9 +107,21 @@ const searchRecipes = async () => {
 
 const saveRecipe = async (recipe) => {
   try {
-    const response = await axios.post('/api/web/recipes/save', recipe);
-    store.dispatch('addFavorite', response.data.recipe || response.data);
-    alert(response.data.message || 'Recipe saved successfully!');
+    // First save the recipe
+    const response = await axios.post('/api/v1/web/recipes/save', {
+      ...recipe,
+      cooking_time: recipe.cooking_time.toString(),
+      servings: parseInt(recipe.servings),
+      ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+      instructions: Array.isArray(recipe.instructions) ? recipe.instructions : [],
+      description: recipe.description || `A delicious recipe for ${recipe.title} using ${recipe.ingredients?.join(', ') || 'selected ingredients'}.`
+    });
+
+    // Then add it to favorites
+    if (response.data.recipe) {
+      await store.dispatch('toggleFavorite', response.data.recipe);
+      alert('Recipe saved successfully!');
+    }
   } catch (err) {
     console.error('Error saving recipe:', err);
     alert('Error saving recipe: ' + (err.response?.data?.error || 'Unknown error'));
@@ -298,7 +296,7 @@ const handleKeyDown = (event) => {
                   class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition duration-200"
                 >
                   <ExternalLink class="w-5 h-5" />
-                  <span>View Recipe</span>
+                  <span>View Original Recipe</span>
                 </a>
               </div>
             </div>
