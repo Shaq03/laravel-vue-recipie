@@ -4,6 +4,7 @@ import { useStore } from 'vuex';
 import { ChefHat, Search, Loader, X, Star, Clock, Users, Settings } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
 import axios from '../axios';
+import RecipeDetailModal from './RecipeDetailModal.vue';
 
 const store = useStore();
 const currentIngredient = ref('');
@@ -14,6 +15,8 @@ const recommendations = computed(() => store.getters.aiSearchResults);
 const showPreferences = ref(false);
 const statusMessage = ref('');
 const searched = ref(false);
+const selectedRecipe = ref(null);
+const showModal = ref(false);
 
 // Add a computed property for authentication status
 const isAuthenticated = computed(() => store.getters.isAuthenticated);
@@ -372,7 +375,7 @@ const clearIngredients = () => {
 
       <!-- Recipe Recommendations -->
       <div v-if="recommendations.length > 0" class="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <div v-for="rec in recommendations" :key="rec.recipe.id" class="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200">
+        <div v-for="rec in recommendations" :key="rec.recipe.id" class="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200" @click="selectedRecipe = rec.recipe; showModal = true" style="cursor:pointer;">
           <div class="relative">
             <img :src="rec.recipe.image_url || '/default-recipe.jpg'" :alt="rec.recipe.title" class="w-full h-48 object-cover" />
             <div class="absolute top-0 right-0 m-2">
@@ -432,13 +435,6 @@ const clearIngredients = () => {
                 </span>
               </div>
             </div>
-
-            <button
-              @click="$router.push(`/recipes/${rec.recipe.id}`)"
-              class="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              View Recipe
-            </button>
           </div>
         </div>
       </div>
@@ -453,6 +449,9 @@ const clearIngredients = () => {
         <p class="text-sm text-gray-700">{{ statusMessage }}</p>
       </div>
     </div>
+
+    <!-- Render the modal -->
+    <RecipeDetailModal v-if="showModal" :recipe="selectedRecipe" :onClose="() => { showModal = false; selectedRecipe = null; }" />
   </div>
 </template>
 

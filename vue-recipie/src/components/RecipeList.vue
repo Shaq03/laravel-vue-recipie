@@ -3,12 +3,15 @@ import { ref, computed, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
 import { ChefHat, PlusCircle, Utensils, Search, Filter, Star } from 'lucide-vue-next';
+import RecipeDetailModal from './RecipeDetailModal.vue';
 
 const store = useStore();
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 9;
 const selectedCuisine = ref('');
+const selectedRecipe = ref(null);
+const showModal = ref(false);
 
 // Get user-specific favorites from the store
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
@@ -174,6 +177,8 @@ onMounted(async () => {
           v-for="recipe in paginatedRecipes"
           :key="recipe.id"
           class="bg-white rounded-xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
+          @click="selectedRecipe = recipe; showModal = true"
+          style="cursor:pointer;"
         >
           <div class="p-6">
             <div class="flex justify-between items-start">
@@ -222,12 +227,14 @@ onMounted(async () => {
             </div>
 
             <!-- View Recipe Button -->
+            <!--
             <router-link
               :to="`/recipes/${recipe.id}`"
               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
             >
               View Recipe
             </router-link>
+            -->
           </div>
         </div>
       </div>
@@ -248,6 +255,9 @@ onMounted(async () => {
         </button>
       </div>
     </div>
+
+    <!-- Render the modal -->
+    <RecipeDetailModal v-if="showModal" :recipe="selectedRecipe" :onClose="() => { showModal = false; selectedRecipe = null; }" />
   </div>
 </template>
 

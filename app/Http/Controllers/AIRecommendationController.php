@@ -503,9 +503,29 @@ class AIRecommendationController extends Controller
                 ->with(['ratings', 'favoritedBy'])
                 ->findOrFail($id);
 
+            if (!$recipe) {
+                Log::warning('AI Recipe not found', ['recipe_id' => $id]);
+                return response()->json([
+                    'error' => 'Recipe not found. Please try generating new recommendations.'
+                ], 404)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                  ->header('Pragma', 'no-cache')
+                  ->header('Expires', '0');
+            }
+
             return response()->json([
                 'recipe' => $recipe
             ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+              ->header('Pragma', 'no-cache')
+              ->header('Expires', '0');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('AI Recipe not found', [
+                'error' => $e->getMessage(),
+                'recipe_id' => $id
+            ]);
+
+            return response()->json([
+                'error' => 'Recipe not found. Please try generating new recommendations.'
+            ], 404)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
               ->header('Pragma', 'no-cache')
               ->header('Expires', '0');
         } catch (\Exception $e) {
@@ -515,8 +535,8 @@ class AIRecommendationController extends Controller
             ]);
 
             return response()->json([
-                'error' => 'Recipe not found'
-            ], 404)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                'error' => 'Failed to retrieve recipe. Please try again.'
+            ], 500)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
               ->header('Pragma', 'no-cache')
               ->header('Expires', '0');
         }

@@ -66,8 +66,14 @@ class RecipeController extends Controller
                 ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 ->header('Pragma', 'no-cache')
                 ->header('Expires', '0');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Recipe not found', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Recipe not found'], 404)
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         } catch (\Exception $e) {
-            Log::error('Error retrieving recipe: ' . $e->getMessage());
+            Log::error('Error retrieving recipe', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['message' => 'Failed to retrieve recipe'], 500)
                 ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 ->header('Pragma', 'no-cache')

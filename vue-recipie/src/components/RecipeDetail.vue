@@ -14,7 +14,7 @@ const userPreferences = ref(null);
 
 const fetchUserPreferences = async () => {
   try {
-    const response = await axios.get('/api/v1/user');
+    const response = await axios.get(`/api/v1/user?t=${Date.now()}`);
     userPreferences.value = response.data.preferences;
   } catch (err) {
     console.error('Error fetching user preferences:', err);
@@ -31,7 +31,7 @@ const fetchRecipe = async () => {
     
     // First try to get the recipe from the AI recipes endpoint
     try {
-      const aiResponse = await axios.get(`/api/v1/ai/recipes/${id}`);
+      const aiResponse = await axios.get(`/api/v1/ai/recipes/${id}?t=${Date.now()}`);
       console.log('AI recipe response:', aiResponse.data);
       if (aiResponse.data && aiResponse.data.recipe) {
         recipe.value = aiResponse.data.recipe;
@@ -39,13 +39,13 @@ const fetchRecipe = async () => {
       } else {
         console.warn('AI endpoint returned 200 but no recipe:', aiResponse.data);
       }
-    } catch (e) {
-      console.log('Recipe not found in AI recipes, trying main recipes...', e);
+    } catch (aiErr) {
+      console.log('Recipe not found in AI recipes, trying main recipes...', aiErr);
     }
     
     // If not found, try the main recipes endpoint
     try {
-      const mainResponse = await axios.get(`/api/v1/recipes/${id}`);
+      const mainResponse = await axios.get(`/api/v1/recipes/${id}?t=${Date.now()}`);
       console.log('Main recipe response:', mainResponse.data);
       if (mainResponse.data && mainResponse.data.recipe) {
         recipe.value = mainResponse.data.recipe;
