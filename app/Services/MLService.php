@@ -3,68 +3,102 @@
 namespace App\Services;
 
 use App\Models\Recipe;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Collection;
 
 class MLService
 {
-    public function getSimilarRecipes(Recipe $recipe, $limit = 3, $minSimilarity = 0.3)
+    public function getSimilarRecipes(Recipe $recipe, int $limit = 3, float $minSimilarity = 0.2): Collection
     {
-        $allRecipes = Recipe::where('id', '!=', $recipe->id)->get();
-        $similarities = [];
+        try {
+            $allRecipes = Recipe::where('id', '!=', $recipe->id)->get();
+            $similarities = [];
 
-        foreach ($allRecipes as $otherRecipe) {
-            $similarity = $this->calculateSimilarity($recipe, $otherRecipe);
-            if ($similarity >= $minSimilarity) {
-                $similarities[$otherRecipe->id] = $similarity;
-                // Attach similarity score to recipe
-                $otherRecipe->similarity_score = $similarity;
+            foreach ($allRecipes as $otherRecipe) {
+                $similarity = $this->calculateSimilarity($recipe, $otherRecipe);
+                if ($similarity >= $minSimilarity) {
+                    $similarities[] = [
+                        'recipe' => $otherRecipe,
+                        'similarity' => $similarity
+                    ];
+                }
             }
+
+            // Sort by similarity in descending order
+            usort($similarities, function ($a, $b) {
+                return $b['similarity'] <=> $a['similarity'];
+            });
+
+            // Take top N recipes
+            $similarities = array_slice($similarities, 0, $limit);
+
+            // Convert to Eloquent Collection
+            return Recipe::whereIn('id', collect($similarities)->pluck('recipe.id'))->get()
+                ->map(function ($recipe) use ($similarities) {
+                    $recipe->similarity_score = collect($similarities)
+                        ->firstWhere('recipe.id', $recipe->id)['similarity'];
+                    return $recipe;
+                });
+        } catch (\Exception $e) {
+            Log::error('Error finding similar recipes: ' . $e->getMessage());
+            return new Collection([]);
         }
-
-        // Sort by similarity score (highest first)
-        arsort($similarities);
-
-        // Get top N similar recipe IDs
-        $similarRecipeIds = array_slice(array_keys($similarities), 0, $limit);
-
-        return Recipe::whereIn('id', $similarRecipeIds)
-            ->get()
-            ->map(function ($recipe) use ($similarities) {
-                $recipe->similarity_score = $similarities[$recipe->id];
-                return $recipe;
-            })
-            ->sortByDesc('similarity_score');
     }
 
-    private function calculateSimilarity(Recipe $recipe1, Recipe $recipe2)
+    public function calculateSimilarity(Recipe $recipe1, Recipe $recipe2): float
     {
-        $score = 0;
+        try {
+            // Get ingredients as arrays
+            $ingredients1 = is_array($recipe1->ingredients) ? $recipe1->ingredients : json_decode($recipe1->ingredients, true);
+            $ingredients2 = is_array($recipe2->ingredients) ? $recipe2->ingredients : json_decode($recipe2->ingredients, true);
 
-        // Compare ingredients (using Jaccard similarity)
-        $ingredients1 = collect($recipe1->ingredients);
-        $ingredients2 = collect($recipe2->ingredients);
-        
-        $intersection = $ingredients1->intersect($ingredients2)->count();
-        $union = $ingredients1->union($ingredients2)->count();
-        $ingredientScore = $union > 0 ? $intersection / $union : 0;
-        $score += $ingredientScore * 0.4; // Ingredients are weighted 40%
+            if (empty($ingredients1) || empty($ingredients2)) {
+                return 0.0;
+            }
 
-        // Compare cooking time (normalized difference)
-        $time1 = intval(str_replace(['min', 'mins', ' '], '', $recipe1->cooking_time));
-        $time2 = intval(str_replace(['min', 'mins', ' '], '', $recipe2->cooking_time));
-        $maxTime = max($time1, $time2);
-        $timeScore = $maxTime > 0 ? 1 - (abs($time1 - $time2) / $maxTime) : 1;
-        $score += $timeScore * 0.2; // Cooking time is weighted 20%
+            // Calculate Jaccard similarity
+            $intersection = array_intersect($ingredients1, $ingredients2);
+            $union = array_unique(array_merge($ingredients1, $ingredients2));
 
-        // Compare difficulty
-        $difficultyScore = $recipe1->difficulty === $recipe2->difficulty ? 1 : 0;
-        $score += $difficultyScore * 0.2; // Difficulty is weighted 20%
+            if (empty($union)) {
+                return 0.0;
+            }
 
-        // Compare servings
-        $maxServings = max($recipe1->servings, $recipe2->servings);
-        $servingsScore = $maxServings > 0 ? 
-            1 - (abs($recipe1->servings - $recipe2->servings) / $maxServings) : 1;
-        $score += $servingsScore * 0.2; // Servings is weighted 20%
+            return count($intersection) / count($union);
+        } catch (\Exception $e) {
+            Log::error('Error calculating recipe similarity: ' . $e->getMessage());
+            return 0.0;
+        }
+    }
 
-        return $score;
+    public function findSimilarRecipes(Recipe $recipe, int $limit = 5): Collection
+    {
+        try {
+            $allRecipes = Recipe::where('id', '!=', $recipe->id)->get();
+            $similarities = [];
+
+            foreach ($allRecipes as $otherRecipe) {
+                $similarity = $this->calculateSimilarity($recipe, $otherRecipe);
+                if ($similarity > 0) {
+                    $similarities[] = [
+                        'recipe' => $otherRecipe,
+                        'similarity' => $similarity
+                    ];
+                }
+            }
+
+            // Sort by similarity in descending order
+            usort($similarities, function ($a, $b) {
+                return $b['similarity'] <=> $a['similarity'];
+            });
+
+            // Take top N recipes
+            $similarities = array_slice($similarities, 0, $limit);
+
+            return collect($similarities)->pluck('recipe');
+        } catch (\Exception $e) {
+            Log::error('Error finding similar recipes: ' . $e->getMessage());
+            return collect([]);
+        }
     }
 } 
