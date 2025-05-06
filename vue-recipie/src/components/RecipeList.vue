@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useStore } from 'vuex';
 import Navigation from './Navigation.vue';
 import { ChefHat, PlusCircle, Utensils, Search, Filter, Star, Clock, Users, Loader, X } from 'lucide-vue-next';
@@ -16,11 +16,25 @@ const showModal = ref(false);
 const showRatingModal = ref(false);
 const selectedRating = ref(1);
 const recipeToMark = ref(null);
+const selectedDifficulty = ref('');
+const maxCookingTime = ref('');
+const minServings = ref('');
 
 // Get user-specific favorites from the store
 const isFavorite = (recipe) => store.getters.isFavorite(recipe.id);
 const toggleFavorite = async (recipe) => {
   await store.dispatch('toggleFavorite', recipe);
+};
+
+// Search functionality
+const searchRecipes = () => {
+  // Force a re-computation of filteredRecipes
+  const query = searchQuery.value;
+  searchQuery.value = '';
+  nextTick(() => {
+    searchQuery.value = query;
+    currentPage.value = 1; // Reset to first page when searching
+  });
 };
 
 // Only get user-created recipes
@@ -42,16 +56,32 @@ const availableCuisines = computed(() => {
 // Filtered recipes
 const filteredRecipes = computed(() => {
   return recipes.value.filter(recipe => {
-    const matchesSearch = recipe.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-                         recipe.description.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-                         recipe.ingredients.some(ingredient => 
-                           ingredient.toLowerCase().includes(searchQuery.value.toLowerCase())
-                         );
+    // Search query matches title, description, or ingredients
+    const matchesSearch = !searchQuery.value || 
+      recipe.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      recipe.description.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      recipe.ingredients.some(ingredient => 
+        ingredient.toLowerCase().includes(searchQuery.value.toLowerCase())
+      );
     
+    // Cuisine filter
     const matchesCuisine = !selectedCuisine.value || 
-                          (recipe.cuisines && recipe.cuisines.includes(selectedCuisine.value));
+      (recipe.cuisines && recipe.cuisines.includes(selectedCuisine.value));
     
-    return matchesSearch && matchesCuisine;
+    // Difficulty filter
+    const matchesDifficulty = !selectedDifficulty.value ||
+      recipe.difficulty === selectedDifficulty.value;
+    
+    // Cooking time filter
+    const matchesCookingTime = !maxCookingTime.value ||
+      recipe.cooking_time <= parseInt(maxCookingTime.value);
+    
+    // Servings filter
+    const matchesServings = !minServings.value ||
+      recipe.servings >= parseInt(minServings.value);
+    
+    return matchesSearch && matchesCuisine && matchesDifficulty && 
+           matchesCookingTime && matchesServings;
   });
 });
 
@@ -79,6 +109,9 @@ const pageNumbers = computed(() => {
 const resetFilters = () => {
   searchQuery.value = '';
   selectedCuisine.value = '';
+  selectedDifficulty.value = '';
+  maxCookingTime.value = '';
+  minServings.value = '';
   currentPage.value = 1;
 };
 
@@ -136,26 +169,81 @@ onMounted(async () => {
       </div>
 
       <!-- Search and Filter Section -->
-      <div class="max-w-xl mx-auto mb-12">
+      <div class="max-w-4xl mx-auto mb-12">
         <div class="bg-white rounded-xl shadow-lg p-6">
-          <div class="flex gap-4">
-            <div class="flex-1">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Search Input -->
+            <div class="col-span-full">
               <input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search recipes..."
+                placeholder="Search by title, description, or ingredients..."
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
-            <button
-              @click="searchRecipes"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition duration-200 flex items-center"
-              :disabled="loading"
-            >
-              <Search v-if="!loading" class="w-5 h-5 mr-2" />
-              <Loader v-else class="w-5 h-5 mr-2 animate-spin" />
-              <span>{{ loading ? 'Searching...' : 'Search' }}</span>
-            </button>
+            
+            <!-- Cuisine Filter -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Cuisine</label>
+              <select
+                v-model="selectedCuisine"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">All Cuisines</option>
+                <option v-for="cuisine in availableCuisines" :key="cuisine" :value="cuisine">
+                  {{ cuisine }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Difficulty Filter -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
+              <select
+                v-model="selectedDifficulty"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">All Difficulties</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+
+            <!-- Cooking Time Filter -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Max Cooking Time (min)</label>
+              <input
+                v-model="maxCookingTime"
+                type="number"
+                min="0"
+                placeholder="No limit"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+
+            <!-- Servings Filter -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Min Servings</label>
+              <input
+                v-model="minServings"
+                type="number"
+                min="1"
+                placeholder="No minimum"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+
+            <!-- Reset Button -->
+            <div class="col-span-full flex justify-end">
+              <button
+                @click="resetFilters"
+                class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition duration-200 flex items-center"
+              >
+                <X class="w-5 h-5 mr-2" />
+                <span>Reset Filters</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -164,60 +252,100 @@ onMounted(async () => {
       <div v-if="loading" class="flex justify-center my-12">
         <Loader class="w-12 h-12 text-indigo-600 animate-spin" />
       </div>
-      <div v-else-if="recipes.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div
-          v-for="recipe in recipes"
-          :key="recipe.id"
-          class="bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200 cursor-pointer"
-          @click="(e) => { selectedRecipe = recipe; showModal = true; }"
-        >
-          <div class="relative">
-            <img
-              :src="recipe.image_url || '/default-recipe.jpg'"
-              :alt="recipe.title"
-              class="w-full h-48 object-cover"
-            />
-            <div class="absolute top-0 right-0 m-2">
-              <button
-                @click.stop="toggleFavorite(recipe)"
-                class="p-2 rounded-full bg-white shadow-md hover:bg-gray-100 transition-colors duration-200"
-                :class="{ 'text-red-500': isFavorite(recipe) }"
-              >
-                <Star class="h-6 w-6" :fill="isFavorite(recipe) ? 'currentColor' : 'none'" />
-              </button>
+      <div v-else-if="error" class="text-center py-12">
+        <p class="text-red-600">{{ error }}</p>
+      </div>
+      <div v-else-if="filteredRecipes.length > 0">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            v-for="recipe in paginatedRecipes"
+            :key="recipe.id"
+            class="bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200 cursor-pointer"
+            @click="(e) => { selectedRecipe = recipe; showModal = true; }"
+          >
+            <div class="relative">
+              <img
+                :src="recipe.image_url || '/default-recipe.jpg'"
+                :alt="recipe.title"
+                class="w-full h-48 object-cover"
+              />
+              <div class="absolute top-0 right-0 m-2">
+                <button
+                  @click.stop="toggleFavorite(recipe)"
+                  class="p-2 rounded-full bg-white shadow-md hover:bg-gray-100 transition-colors duration-200"
+                  :class="{ 'text-red-500': isFavorite(recipe) }"
+                >
+                  <Star class="h-6 w-6" :fill="isFavorite(recipe) ? 'currentColor' : 'none'" />
+                </button>
+              </div>
+            </div>
+            <div class="p-6">
+              <h3 class="text-xl font-bold mb-2 text-gray-800">{{ recipe.title }}</h3>
+              <p class="text-gray-600 mb-4 line-clamp-2">{{ recipe.description }}</p>
+              <div class="flex justify-between text-sm text-gray-500 mb-4">
+                <span class="flex items-center">
+                  <Clock class="w-5 h-5 mr-1" />
+                  {{ recipe.cooking_time }} min
+                </span>
+                <span class="flex items-center">
+                  <Users class="w-5 h-5 mr-1" />
+                  {{ recipe.servings }} servings
+                </span>
+              </div>
+              <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0 justify-between items-center mt-4">
+                <button
+                  @click.stop="openRatingModal(recipe)"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  <ChefHat class="w-5 h-5 mr-2" />
+                  Mark as Cooked
+                </button>
+                <router-link
+                  :to="`/recipes/${recipe.id}/similar`"
+                  @click.stop
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <ChefHat class="w-5 h-5 mr-2" />
+                  Find Similar
+                </router-link>
+              </div>
             </div>
           </div>
-          <div class="p-6">
-            <h3 class="text-xl font-bold mb-2 text-gray-800">{{ recipe.title }}</h3>
-            <p class="text-gray-600 mb-4 line-clamp-2">{{ recipe.description }}</p>
-            <div class="flex justify-between text-sm text-gray-500 mb-4">
-              <span class="flex items-center">
-                <Clock class="w-5 h-5 mr-1" />
-                {{ recipe.cooking_time }} min
-              </span>
-              <span class="flex items-center">
-                <Users class="w-5 h-5 mr-1" />
-                {{ recipe.servings }} servings
-              </span>
-            </div>
-            <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0 justify-between items-center mt-4">
-              <button
-                @click.stop="openRatingModal(recipe)"
-                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-              >
-                <ChefHat class="w-5 h-5 mr-2" />
-                Mark as Cooked
-              </button>
-              <router-link
-                :to="`/recipes/${recipe.id}/similar`"
-                @click.stop
-                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <ChefHat class="w-5 h-5 mr-2" />
-                Find Similar
-              </router-link>
-            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-8 flex justify-center items-center space-x-2">
+          <button
+            @click="currentPage = Math.max(1, currentPage - 1)"
+            :disabled="currentPage === 1"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          
+          <div class="flex items-center space-x-1">
+            <button
+              v-for="page in pageNumbers"
+              :key="page"
+              @click="currentPage = page"
+              :class="[
+                'px-4 py-2 rounded-md',
+                currentPage === page
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              ]"
+            >
+              {{ page }}
+            </button>
           </div>
+
+          <button
+            @click="currentPage = Math.min(totalPages, currentPage + 1)"
+            :disabled="currentPage === totalPages"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
         </div>
       </div>
       <div v-else class="text-center py-12">
