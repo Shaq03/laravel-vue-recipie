@@ -100,8 +100,11 @@ export default createStore({
   actions: {
     initializeAuth({ state, commit }) {
       const token = localStorage.getItem('token');
-      if (token) {
+      const user = localStorage.getItem('user');
+      
+      if (token && user) {
         commit('SET_TOKEN', token);
+        commit('SET_USER', JSON.parse(user));
         return Promise.all([
           this.dispatch('fetchUserRecipes'),
           this.dispatch('fetchFavorites')
@@ -113,6 +116,9 @@ export default createStore({
     async register({ commit, dispatch }, credentials) {
       try {
         const response = await axios.post('/api/v1/register', credentials);
+        if (!response.data.token || !response.data.user) {
+          throw new Error('Invalid response from server');
+        }
         commit('SET_USER', response.data.user);
         commit('SET_TOKEN', response.data.token);
         await dispatch('fetchUserRecipes');
@@ -150,8 +156,6 @@ export default createStore({
         console.error('Logout error:', error);
       } finally {
         commit('CLEAR_USER_DATA');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
       }
     },
 

@@ -22,9 +22,12 @@ class AuthController extends Controller
             'username' => $request->username,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'email_verified_at' => now(),
         ]);
 
         $token = $user->createToken('auth_token', ['*'], now()->addYears(100))->plainTextToken;
+
+        Auth::login($user);
 
         return response()->json([
             'user' => $user,
@@ -46,6 +49,9 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
+        
+        $user->tokens()->delete();
+        
         $token = $user->createToken('auth_token', ['*'], now()->addYears(100))->plainTextToken;
 
         return response()->json([

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useStore } from 'vuex';
+import router from './router';
 
-// Create axios instance with custom config
 const instance = axios.create({
     baseURL: 'http://localhost:8000',
     headers: {
@@ -10,7 +10,6 @@ const instance = axios.create({
     }
 });
 
-// Add a request interceptor to include the auth token
 instance.interceptors.request.use(
     config => {
         const token = localStorage.getItem('token');
@@ -24,28 +23,34 @@ instance.interceptors.request.use(
     }
 );
 
-// Add a response interceptor to handle 401 errors
 instance.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (error.response?.status === 401) {
-            const store = useStore();
+        const originalRequest = error.config;
+        
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+            
             try {
-                // Try to refresh the token
-                const refreshed = await store.dispatch('refreshToken');
-                if (refreshed) {
-                    // Retry the original request
-                    error.config.headers['Authorization'] = `Bearer ${store.state.token}`;
-                    return instance(error.config);
+                const response = await instance.post('/api/v1/refresh-token');
+                if (response.data.token) {
+                    localStorage.setItem('token', response.data.token);
+                    instance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+                    
+                    originalRequest.headers['Authorization'] = `Bearer ${response.data.token}`;
+                    return instance(originalRequest);
                 }
             } catch (refreshError) {
                 console.error('Token refresh failed:', refreshError);
             }
             
-            // If refresh failed or not attempted, clear auth data and redirect
-            console.log('Authentication failed, clearing auth data');
-            store.dispatch('logout');
-            window.location.href = '/login';
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            delete instance.defaults.headers.common['Authorization'];
+            
+            if (router.currentRoute.value.path !== '/login') {
+                router.push('/login');
+            }
         }
         return Promise.reject(error);
     }
