@@ -1,8 +1,8 @@
 import { createStore } from 'vuex';
 import axios from '../axios';
 
-// Add base URL for API requests
-axios.defaults.baseURL = 'http://localhost:8000';
+// Remove duplicate axios configuration
+// axios.defaults.baseURL = 'http://localhost:8000';
 
 // Initialize axios headers if token exists
 const token = localStorage.getItem('token');
@@ -148,10 +148,13 @@ export default createStore({
         const response = await axios.post('/api/v1/login', credentials);
         console.log('Login response:', response.data);
         
+        if (!response.data.token || !response.data.user) {
+          throw new Error('Invalid response from server');
+        }
+        
         commit('SET_USER', response.data.user);
         commit('SET_TOKEN', response.data.token);
         
-        // Fetch user-specific data after login
         await dispatch('fetchUserRecipes');
         await dispatch('fetchFavorites');
       } catch (error) {

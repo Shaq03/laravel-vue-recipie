@@ -34,7 +34,7 @@ describe('WebRecipeSearch.vue', () => {
   })
 
   it('renders the basic component structure', () => {
-    expect(wrapper.find('h1').text()).toBe('Find Online Recipies')
+    expect(wrapper.find('h1').text()).toBe('Find Online Recipes')
     expect(wrapper.find('input[type="text"]').exists()).toBe(true)
   })
 

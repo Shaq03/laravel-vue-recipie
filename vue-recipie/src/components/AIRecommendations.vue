@@ -217,16 +217,13 @@ const clearIngredients = () => {
 <template>
   <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
     <Navigation />
-    
     <div class="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
-      <div class="text-center">
-        <ChefHat class="h-16 w-16 text-indigo-600 mx-auto mb-4" />
+      <div class="text-center mb-12">
+        <ChefHat class="h-16 w-16 text-indigo-600 mx-auto mb-4 mt-4" />
         <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl">AI Recipe Recommendations</h1>
         <p class="mt-3 text-xl text-gray-600">Discover delicious recipes with ingredients you have on hand!</p>
       </div>
-
-      <!-- Search Form -->
-      <div class="mt-12 max-w-xl mx-auto">
+      <div class="max-w-xl mx-auto">
         <form @submit.prevent="searchRecipes" class="bg-white shadow-md rounded-lg p-6">
           <div class="mb-4">
             <label for="ingredients" class="block text-sm font-medium text-gray-700 mb-2">
@@ -245,8 +242,6 @@ const clearIngredients = () => {
                 <Search class="h-5 w-5 text-gray-400" />
               </div>
             </div>
-
-            <!-- Selected Ingredients Tags -->
             <div class="mt-3 flex flex-wrap gap-2">
               <div
                 v-for="(ingredient, index) in selectedIngredients"
@@ -264,7 +259,6 @@ const clearIngredients = () => {
               </div>
             </div>
           </div>
-
           <div class="flex justify-between items-center">
             <button
               type="button"
@@ -274,7 +268,6 @@ const clearIngredients = () => {
               <Settings class="h-5 w-5 mr-2" />
               Preferences
             </button>
-
             <button 
               @click="clearIngredients" 
               class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-lg transition duration-200"
@@ -283,11 +276,10 @@ const clearIngredients = () => {
               Clear All
             </button>
           </div>
-
           <div class="mt-4">
             <button
               @click="searchRecipes" 
-              class="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition duration-200 flex items-center justify-center"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition duration-200 flex items-center justify-center"
               :disabled="loading || selectedIngredients.length === 0"
             >
               <Search v-if="!loading" class="w-5 h-5 mr-2" />
@@ -296,11 +288,8 @@ const clearIngredients = () => {
             </button>
           </div>
         </form>
-
-        <!-- Preferences Panel -->
         <div v-if="showPreferences" class="mt-4 bg-white shadow-md rounded-lg p-6">
           <h3 class="text-lg font-medium text-gray-900 mb-4">Your Preferences</h3>
-          
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700">Cooking Skill Level</label>
@@ -313,7 +302,6 @@ const clearIngredients = () => {
                 <option value="advanced">Advanced</option>
               </select>
             </div>
-
             <div>
               <label class="block text-sm font-medium text-gray-700">Preferred Cuisines</label>
               <div class="mt-2 grid grid-cols-2 gap-2">
@@ -328,7 +316,6 @@ const clearIngredients = () => {
                 </label>
               </div>
             </div>
-
             <div>
               <label class="block text-sm font-medium text-gray-700">Dietary Restrictions</label>
               <div class="mt-2 grid grid-cols-2 gap-2">
@@ -343,7 +330,6 @@ const clearIngredients = () => {
                 </label>
               </div>
             </div>
-
             <div>
               <label class="inline-flex items-center">
                 <input
@@ -354,7 +340,6 @@ const clearIngredients = () => {
                 <span class="ml-2 text-sm text-gray-700">Consider seasonal ingredients</span>
               </label>
             </div>
-
             <div class="flex justify-end">
               <button
                 @click="updatePreferences"
@@ -365,15 +350,11 @@ const clearIngredients = () => {
             </div>
           </div>
         </div>
-
-        <!-- Error Message -->
         <div v-if="error" class="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
           <p class="font-bold">Error</p>
           <p>{{ error }}</p>
         </div>
       </div>
-
-      <!-- Recipe Recommendations -->
       <div v-if="recommendations.length > 0" class="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <div v-for="rec in recommendations" :key="rec.recipe.id" class="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200" @click="selectedRecipe = rec.recipe; showModal = true" style="cursor:pointer;">
           <div class="relative">
@@ -388,11 +369,8 @@ const clearIngredients = () => {
               </button>
             </div>
           </div>
-
           <div class="p-4">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ rec.recipe.title }}</h3>
-            
-            <!-- Match Score -->
             <div class="mb-3">
               <div class="flex items-center">
                 <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -403,8 +381,6 @@ const clearIngredients = () => {
                 </span>
               </div>
             </div>
-
-            <!-- Recipe Details -->
             <div class="space-y-2">
               <div class="flex items-center text-sm text-gray-600">
                 <Clock class="h-4 w-4 mr-1" />
@@ -412,8 +388,6 @@ const clearIngredients = () => {
                 <span class="mx-2">•</span>
                 <span class="capitalize">{{ rec.recipe.difficulty }}</span>
               </div>
-              
-              <!-- Cuisine Tags -->
               <div class="flex flex-wrap gap-2">
                 <span
                   v-for="cuisine in rec.recipe.cuisines"
@@ -423,8 +397,6 @@ const clearIngredients = () => {
                   {{ cuisine }}
                 </span>
               </div>
-
-              <!-- Dietary Tags -->
               <div class="flex flex-wrap gap-2">
                 <span
                   v-for="tag in rec.recipe.tags"
@@ -438,19 +410,13 @@ const clearIngredients = () => {
           </div>
         </div>
       </div>
-
-      <!-- No Results Message -->
       <div v-else-if="!loading && selectedIngredients.length > 0" class="mt-8 text-center">
         <p class="text-gray-600">No recommendations found. Try adding different ingredients!</p>
       </div>
-
-      <!-- Status Message -->
       <div v-if="statusMessage" class="mt-4 p-4 bg-white rounded-md">
         <p class="text-sm text-gray-700">{{ statusMessage }}</p>
       </div>
     </div>
-
-    <!-- Render the modal -->
     <RecipeDetailModal v-if="showModal" :recipe="selectedRecipe" :onClose="() => { showModal = false; selectedRecipe = null; }" />
   </div>
 </template>

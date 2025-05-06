@@ -37,7 +37,7 @@ describe('Register.vue', () => {
     expect(wrapper.find('input[name="username"]').exists()).toBe(true)
     expect(wrapper.find('input[name="email"]').exists()).toBe(true)
     expect(wrapper.find('input[name="password"]').exists()).toBe(true)
-    expect(wrapper.find('input[name="confirm-password"]').exists()).toBe(true)
+    expect(wrapper.find('input[name="confirmPassword"]').exists()).toBe(true)
     expect(wrapper.find('button[type="submit"]').exists()).toBe(true)
   })
 

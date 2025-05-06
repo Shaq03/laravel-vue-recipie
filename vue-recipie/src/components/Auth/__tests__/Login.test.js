@@ -63,6 +63,6 @@ describe('Login.vue', () => {
     wrapper.vm.email = 'test@example.com'
     wrapper.vm.password = 'wrongpassword'
     await wrapper.find('form').trigger('submit')
-    expect(wrapper.vm.error).toBe('Invalid credentials')
+    expect(wrapper.vm.error).toBe('An error occurred during login')
   })
 }) 
