@@ -13,6 +13,7 @@ use App\Http\Controllers\FavoriteController;
 // Public routes
 Route::post('/v1/register', [AuthController::class, 'register']);
 Route::post('/v1/login', [AuthController::class, 'login']);
+Route::post('/v1/refresh-token', [AuthController::class, 'refreshToken']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {

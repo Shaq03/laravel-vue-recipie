@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useStore } from 'vuex';
 
 // Create axios instance with custom config
 const instance = axios.create({
@@ -13,15 +14,12 @@ const instance = axios.create({
 instance.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
-        console.log('Axios interceptor - Current token:', token);
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
-            console.log('Axios interceptor - Setting Authorization header:', config.headers['Authorization']);
         }
         return config;
     },
     (error) => {
-        console.error('Axios interceptor error:', error);
         return Promise.reject(error);
     }
 );
@@ -29,11 +27,24 @@ instance.interceptors.request.use(
 // Add a response interceptor to handle 401 errors
 instance.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         if (error.response?.status === 401) {
-            console.log('Received 401 response, clearing auth data');
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            const store = useStore();
+            try {
+                // Try to refresh the token
+                const refreshed = await store.dispatch('refreshToken');
+                if (refreshed) {
+                    // Retry the original request
+                    error.config.headers['Authorization'] = `Bearer ${store.state.token}`;
+                    return instance(error.config);
+                }
+            } catch (refreshError) {
+                console.error('Token refresh failed:', refreshError);
+            }
+            
+            // If refresh failed or not attempted, clear auth data and redirect
+            console.log('Authentication failed, clearing auth data');
+            store.dispatch('logout');
             window.location.href = '/login';
         }
         return Promise.reject(error);

@@ -1,10 +1,6 @@
 import { createStore } from 'vuex';
 import axios from '../axios';
 
-// Remove duplicate axios configuration
-// axios.defaults.baseURL = 'http://localhost:8000';
-
-// Initialize axios headers if token exists
 const token = localStorage.getItem('token');
 if (token) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -54,16 +50,13 @@ export default createStore({
       state.userRecipes.push(recipe);
     },
     SET_USER(state, user) {
-      console.log('Setting user:', user);
       state.user = user;
       localStorage.setItem('user', JSON.stringify(user));
     },
     SET_TOKEN(state, token) {
-      console.log('Setting token:', token);
       state.token = token;
       if (token) {
         localStorage.setItem('token', token);
-        // Set the token in axios headers
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       } else {
         localStorage.removeItem('token');
@@ -105,14 +98,10 @@ export default createStore({
   },
   
   actions: {
-    // Initialize auth
     initializeAuth({ state, commit }) {
-      console.log('Initializing auth with token:', state.token);
       const token = localStorage.getItem('token');
       if (token) {
-        console.log('Found token in localStorage, setting it...');
         commit('SET_TOKEN', token);
-        // Fetch user-specific data
         return Promise.all([
           this.dispatch('fetchUserRecipes'),
           this.dispatch('fetchFavorites')
@@ -123,18 +112,12 @@ export default createStore({
 
     async register({ commit, dispatch }, credentials) {
       try {
-        console.log('Attempting registration with:', credentials);
         const response = await axios.post('/api/v1/register', credentials);
-        console.log('Registration response:', response.data);
-        
         commit('SET_USER', response.data.user);
         commit('SET_TOKEN', response.data.token);
-        
-        // Fetch user-specific data after registration
         await dispatch('fetchUserRecipes');
         await dispatch('fetchFavorites');
       } catch (error) {
-        console.error('Registration error:', error.response?.data);
         if (error.response?.status === 422) {
           throw new Error(error.response.data.message || 'Registration failed');
         }
@@ -144,21 +127,15 @@ export default createStore({
 
     async login({ commit, dispatch }, credentials) {
       try {
-        console.log('Attempting login with:', credentials);
         const response = await axios.post('/api/v1/login', credentials);
-        console.log('Login response:', response.data);
-        
         if (!response.data.token || !response.data.user) {
           throw new Error('Invalid response from server');
         }
-        
         commit('SET_USER', response.data.user);
         commit('SET_TOKEN', response.data.token);
-        
         await dispatch('fetchUserRecipes');
         await dispatch('fetchFavorites');
       } catch (error) {
-        console.error('Login error:', error.response?.data);
         if (error.response?.status === 422) {
           throw new Error(error.response.data.message || 'Invalid credentials');
         }
@@ -173,17 +150,31 @@ export default createStore({
         console.error('Logout error:', error);
       } finally {
         commit('CLEAR_USER_DATA');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    },
+
+    async refreshToken({ commit, state }) {
+      try {
+        const response = await axios.post('/api/v1/refresh-token');
+        if (response.data.token) {
+          commit('SET_TOKEN', response.data.token);
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('Token refresh error:', error);
+        return false;
       }
     },
 
     async fetchUserRecipes({ commit }) {
       commit('SET_LOADING', true);
       try {
-        console.log('Fetching user recipes with token:', axios.defaults.headers.common['Authorization']);
         const response = await axios.get('/api/v1/user/recipes');
         commit('SET_USER_RECIPES', response.data.recipes);
       } catch (error) {
-        console.error('Error fetching user recipes:', error.response?.data);
         commit('SET_ERROR', error.response?.data?.message || 'Failed to fetch user recipes');
       } finally {
         commit('SET_LOADING', false);
@@ -193,11 +184,9 @@ export default createStore({
     async fetchFavorites({ commit }) {
       commit('SET_LOADING', true);
       try {
-        console.log('Fetching favorites with token:', axios.defaults.headers.common['Authorization']);
         const response = await axios.get('/api/v1/user/favorites');
         commit('SET_FAVORITES', response.data.favorites);
       } catch (error) {
-        console.error('Error fetching favorites:', error.response?.data);
         commit('SET_ERROR', error.response?.data?.message || 'Failed to fetch favorites');
       } finally {
         commit('SET_LOADING', false);
@@ -211,10 +200,8 @@ export default createStore({
         } else {
           await axios.post('/api/v1/user/favorites', { recipe_id: recipe.id });
         }
-        // Fetch updated favorites after toggling
         await dispatch('fetchFavorites');
       } catch (error) {
-        console.error('Error toggling favorite:', error.response?.data);
         commit('SET_ERROR', error.response?.data?.message || 'Failed to update favorite');
         throw error;
       }
@@ -223,13 +210,10 @@ export default createStore({
     async fetchRecipes({ commit }) {
       commit('SET_LOADING', true);
       commit('SET_ERROR', null);
-      
       try {
-        console.log('Fetching recipes with token:', axios.defaults.headers.common['Authorization']);
         const response = await axios.get('/api/v1/recipes');
         commit('SET_RECIPES', response.data.recipes);
       } catch (error) {
-        console.error('Error fetching recipes:', error.response?.data);
         const errorMessage = error.response?.data?.message || 'Failed to fetch recipes';
         commit('SET_ERROR', errorMessage);
         throw error;
@@ -241,17 +225,14 @@ export default createStore({
     async createRecipe({ commit, dispatch }, recipe) {
       commit('SET_LOADING', true);
       commit('SET_ERROR', null);
-      
       try {
         const recipeData = {
           ...recipe,
           cooking_time: String(recipe.cooking_time),
           servings: Number(recipe.servings)
         };
-        
         const response = await axios.post('/api/v1/recipes', recipeData);
         commit('ADD_RECIPE', response.data);
-        // Refresh user recipes after creating a new one
         await dispatch('fetchUserRecipes');
         return response.data;
       } catch (error) {
