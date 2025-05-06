@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Clock, Users, ChefHat, ArrowLeft, Percent, Utensils } from 'lucide-vue-next';
 import Navigation from './Navigation.vue';
+import axios from '../axios';
 
 const route = useRoute();
 const router = useRouter();
@@ -15,24 +16,28 @@ const getSimilarRecipes = async (recipeId) => {
   error.value = null;
 
   try {
-    const response = await fetch(`http://localhost:8000/api/v1/ml/recipes/${recipeId}/similar`, {
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
+    // First try to get the recipe details to determine its source
+    const recipeResponse = await axios.get(`/api/v1/recipes/${recipeId}`);
+    const recipe = recipeResponse.data.recipe;
+
+    // Then get similar recipes
+    const response = await axios.get(`/api/v1/ml/recipes/${recipeId}/similar`);
+    similarRecipes.value = response.data.similar_recipes.map(item => ({
+      ...item,
+      recipe: {
+        ...item.recipe,
+        source: recipe.source // Preserve the source information
       }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch similar recipes');
-    }
-
-    const data = await response.json();
-    similarRecipes.value = data.similar_recipes;
+    }));
   } catch (err) {
-    error.value = err.message;
+    error.value = err.response?.data?.message || 'Failed to fetch similar recipes';
   } finally {
     loading.value = false;
   }
+};
+
+const viewRecipe = (recipeId) => {
+  router.push(`/recipes/${recipeId}`);
 };
 
 onMounted(() => {
@@ -46,28 +51,30 @@ onMounted(() => {
   <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
     <Navigation />
     
-    <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-      <!-- Back Button -->
-      <button 
-        @click="router.back()" 
-        class="mb-8 inline-flex items-center text-indigo-600 hover:text-indigo-700 transition-colors"
-      >
-        <ArrowLeft class="h-5 w-5 mr-2" />
-        Back to Recipe
-      </button>
+    <div class="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
+      
+      <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <button 
+          @click="router.back()" 
+          class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+        >
+          <ArrowLeft class="h-5 w-5 mr-2" />
+          Back to Recipe
+        </button>
 
-      <div class="text-center mb-12">
-        <Utensils class="h-12 w-12 text-indigo-600 mx-auto mb-4" />
-        <h2 class="text-3xl font-bold text-gray-900">Similar Recipes</h2>
-        <p class="mt-2 text-gray-600">Discover more recipes that match your taste</p>
+        <div class="text-center mt-6">
+          <Utensils class="h-12 w-12 text-indigo-600 mx-auto mb-4" />
+          <h2 class="text-3xl font-bold text-gray-900">Similar Recipes</h2>
+          <p class="mt-2 text-gray-600">Discover more recipes that match your taste</p>
+        </div>
       </div>
       
-      <div v-if="loading" class="text-center py-12">
+      <div v-if="loading" class="text-center py-12 bg-white rounded-xl shadow-lg">
         <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600 mx-auto"></div>
         <p class="mt-4 text-gray-600">Finding similar recipes...</p>
       </div>
       
-      <div v-else-if="error" class="text-center py-12">
+      <div v-else-if="error" class="text-center py-12 bg-white rounded-xl shadow-lg">
         <div class="max-w-md mx-auto bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -86,7 +93,8 @@ onMounted(() => {
         <div
           v-for="item in similarRecipes"
           :key="item.recipe.id"
-          class="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+          @click="viewRecipe(item.recipe.id)"
+          class="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
         >
           <div class="relative pb-2/3">
             <img
@@ -108,6 +116,20 @@ onMounted(() => {
                   {{ item.similarity_score }}
                 </span>
               </div>
+            </div>
+            <!-- Source Badge -->
+            <div class="absolute top-4 left-4">
+              <span 
+                class="px-2 py-1 text-xs font-medium rounded-full"
+                :class="{
+                  'bg-blue-100 text-blue-800': item.recipe.source === 'web',
+                  'bg-purple-100 text-purple-800': item.recipe.source === 'ai',
+                  'bg-green-100 text-green-800': item.recipe.source === 'user'
+                }"
+              >
+                {{ item.recipe.source === 'web' ? 'Web Recipe' : 
+                   item.recipe.source === 'ai' ? 'AI Generated' : 'User Recipe' }}
+              </span>
             </div>
           </div>
 

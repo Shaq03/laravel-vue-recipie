@@ -29,7 +29,7 @@ const fetchRecipe = async () => {
     const id = route.params.recipeId || route.params.id || route.params.recipe_id;
     console.log('Fetching recipe with ID:', id);
     
-    // First try to get the recipe from the AI recipes endpoint
+
     try {
       const aiResponse = await axios.get(`/api/v1/ai/recipes/${id}?t=${Date.now()}`);
       console.log('AI recipe response:', aiResponse.data);
@@ -43,7 +43,6 @@ const fetchRecipe = async () => {
       console.log('Recipe not found in AI recipes, trying main recipes...', aiErr);
     }
     
-    // If not found, try the main recipes endpoint
     try {
       const mainResponse = await axios.get(`/api/v1/recipes/${id}?t=${Date.now()}`);
       console.log('Main recipe response:', mainResponse.data);
@@ -63,7 +62,6 @@ const fetchRecipe = async () => {
       return;
     }
     
-    // If we get here, the recipe wasn't found in either place
     error.value = 'Recipe not found or API returned unexpected data. Please try generating new recommendations.';
   } catch (err) {
     console.error('Error fetching recipe:', err);
@@ -97,7 +95,7 @@ onMounted(async () => {
   <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
     <Navigation />
     <div class="max-w-3xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
-      <button @click="router.back()" class="mb-6 flex items-center text-indigo-600 hover:underline">
+      <button @click="router.back()" class="mb-6 mt-6 flex items-center text-indigo-600 hover:underline">
         <ArrowLeft class="w-5 h-5 mr-2" /> Back
       </button>
       <div v-if="loading" class="text-center py-16">
@@ -143,6 +141,17 @@ onMounted(async () => {
               </span>
             </div>
           </div>
+        </div>
+
+        <!-- Similar Recipes Button -->
+        <div class="mt-8 flex justify-center">
+          <router-link
+            :to="`/recipes/${recipe.id}/similar`"
+            class="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-full shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:scale-105"
+          >
+            <ChefHat class="w-6 h-6 mr-3" />
+            Find Similar Recipes
+          </router-link>
         </div>
 
         <!-- Ingredients Section -->

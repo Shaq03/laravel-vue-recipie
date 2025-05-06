@@ -119,6 +119,17 @@ onMounted(() => {
                 {{ recipe.difficulty }}
               </span>
             </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-between items-center mt-4 pt-4 border-t">
+              <router-link
+                :to="`/recipes/${recipe.id}/similar`"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <ChefHat class="w-4 h-4 mr-2" />
+                Similar Recipes
+              </router-link>
+            </div>
           </div>
         </div>
       </div>
