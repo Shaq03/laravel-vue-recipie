@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import Navigation from '../Navigation.vue';
 import axios from '../../axios';
 
 const router = useRouter();
@@ -24,11 +25,10 @@ onMounted(() => {
 
 const updateProfile = async () => {
   try {
-    const response = await axios.put('/api/user/profile', {
+    const response = await axios.put('/api/v1/user/profile', {
       username: username.value,
       email: email.value
     });
-    
     user.value = response.data.user;
     localStorage.setItem('user', JSON.stringify(response.data.user));
     success.value = 'Profile updated successfully';
@@ -44,14 +44,12 @@ const updatePassword = async () => {
     error.value = 'New passwords do not match';
     return;
   }
-
   try {
-    await axios.put('/api/user/password', {
+    await axios.put('/api/v1/user/password', {
       current_password: currentPassword.value,
       new_password: newPassword.value,
       new_password_confirmation: confirmPassword.value
     });
-    
     success.value = 'Password updated successfully';
     error.value = '';
     currentPassword.value = '';
@@ -71,21 +69,14 @@ const logout = () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-3xl mx-auto">
+  <div class="min-h-screen bg-gray-50">
+    <Navigation />
+    <div class="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
       <div class="bg-white shadow rounded-lg">
         <div class="px-4 py-5 sm:p-6">
           <h3 class="text-lg leading-6 font-medium text-gray-900">Account Settings</h3>
-          
-          <div v-if="error" class="mt-4 text-red-500 text-sm">
-            {{ error }}
-          </div>
-          
-          <div v-if="success" class="mt-4 text-green-500 text-sm">
-            {{ success }}
-          </div>
-
-          <!-- Profile Information -->
+          <div v-if="error" class="mt-4 text-red-500 text-sm">{{ error }}</div>
+          <div v-if="success" class="mt-4 text-green-500 text-sm">{{ success }}</div>
           <div class="mt-6">
             <h4 class="text-md font-medium text-gray-900">Profile Information</h4>
             <div class="mt-4 grid grid-cols-1 gap-4">
@@ -104,7 +95,8 @@ const logout = () => {
                   id="email"
                   v-model="email"
                   type="email"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  disabled
+                  class="mt-1 block w-full border border-gray-200 rounded-md shadow-sm py-2 px-3 bg-gray-100 text-gray-400 cursor-not-allowed sm:text-sm"
                 />
               </div>
             </div>
@@ -117,8 +109,6 @@ const logout = () => {
               </button>
             </div>
           </div>
-
-          <!-- Change Password -->
           <div class="mt-8">
             <h4 class="text-md font-medium text-gray-900">Change Password</h4>
             <div class="mt-4 grid grid-cols-1 gap-4">
@@ -159,8 +149,6 @@ const logout = () => {
               </button>
             </div>
           </div>
-
-          <!-- Logout -->
           <div class="mt-8">
             <button
               @click="logout"
