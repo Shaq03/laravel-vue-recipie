@@ -71,6 +71,12 @@ const routes = [
     name: 'favorites',
     component: () => import('../components/Favorites.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/cooking-history',
+    name: 'cooking-history',
+    component: () => import('../components/CookingHistory.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

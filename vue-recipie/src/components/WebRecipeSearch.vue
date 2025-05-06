@@ -30,15 +30,13 @@ const commonIngredients = [
 ];
 
 const validateIngredient = (ingredient) => {
-  // Basic validation rules
-  // Check if ingredient is too short
+
   if (ingredient.length < 2) return false;
   
   // Check if ingredient contains numbers
   if (/\d/.test(ingredient)) return false;
   
-  // Check if ingredient is in our common ingredients list (case-insensitive)
-  // Or allow it if it's at least 3 characters long (more permissive)
+
   return commonIngredients.some(common => 
     common.toLowerCase() === ingredient.toLowerCase()
   ) || ingredient.length >= 3;
@@ -128,15 +126,37 @@ const saveRecipe = async (recipe) => {
   }
 };
 
-// Computed property to check if we have any recipes
+const markAsCooked = async (recipe) => {
+  try {
+    const response = await axios.post('/api/v1/cooking-history', {
+      recipe_id: recipe.id,
+      rating: 0,
+      notes: ''
+    });
+    
+    alert('Recipe added to your cooking history! You can now rate it and add notes in your cooking history page.');
+  } catch (err) {
+    console.error('Error marking recipe as cooked:', err);
+    alert('Failed to add recipe to cooking history. Please try again.');
+  }
+};
+
 const hasRecipes = computed(() => recipes.value.length > 0);
 
-// Handle Enter key in the ingredient input
 const handleKeyDown = (event) => {
   if (event.key === 'Enter') {
     addIngredient();
   }
 };
+
+// Add a helper to format cooking time
+function formatCookingTime(time) {
+  // If it's a number, just return it
+  if (typeof time === 'number') return `${time} min`;
+  // If it's a string, extract the number
+  const match = String(time).match(/\d+/);
+  return match ? `${match[0]} min` : '';
+}
 </script>
 
 <template>
@@ -227,7 +247,7 @@ const handleKeyDown = (event) => {
           <div 
             v-for="(recipe, index) in recipes" 
             :key="index"
-            class="bg-white rounded-xl shadow-lg overflow-hidden transition duration-200 hover:shadow-xl hover:-translate-y-1"
+            class="bg-white rounded-xl shadow-lg overflow-hidden transition duration-200 hover:shadow-xl hover:-translate-y-1 flex flex-col"
           >
             <div v-if="recipe.image_url" class="h-48 overflow-hidden">
               <img :src="recipe.image_url" :alt="recipe.title" class="w-full h-full object-cover"
@@ -236,13 +256,13 @@ const handleKeyDown = (event) => {
             <div v-else class="h-48 bg-gray-200 flex items-center justify-center">
               <ChefHat class="w-12 h-12 text-gray-400" />
             </div>
-            <div class="p-6">
+            <div class="p-6 flex-1 flex flex-col">
               <h3 class="text-xl font-bold mb-2 text-gray-800">{{ recipe.title }}</h3>
               <p class="text-gray-600 mb-4 line-clamp-2">{{ recipe.description }}</p>
               <div class="flex justify-between text-sm text-gray-500 mb-4">
                 <span class="flex items-center">
                   <Clock class="w-5 h-5 mr-1" />
-                  {{ recipe.cooking_time }}
+                  {{ formatCookingTime(recipe.cooking_time) }}
                 </span>
                 <span class="flex items-center">
                   <Users class="w-5 h-5 mr-1" />
@@ -265,24 +285,38 @@ const handleKeyDown = (event) => {
                   {{ restriction.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') }}
                 </span>
               </div>
-              <div class="flex gap-2">
+              <div class="mt-auto pt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:space-x-3 sm:space-y-0">
                 <button 
                   @click="saveRecipe(recipe)" 
-                  class="flex-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition duration-200"
+                  class="w-full sm:w-auto bg-indigo-100 hover:bg-indigo-200 text-indigo-800 px-2 py-1 text-xs rounded-lg flex items-center justify-center gap-1 transition duration-200"
                   :class="{ 'bg-orange-100 text-orange-800': isFavorite(recipe) }"
                 >
-                  <Star class="w-5 h-5" />
+                  <Star class="w-4 h-4" />
                   <span>{{ isFavorite(recipe) ? 'Saved' : 'Save' }}</span>
                 </button>
                 <a 
                   :href="recipe.source_url" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition duration-200"
+                  class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 text-xs rounded-lg flex items-center justify-center gap-1 transition duration-200"
                 >
-                  <ExternalLink class="w-5 h-5" />
+                  <ExternalLink class="w-4 h-4" />
                   <span>View Original</span>
                 </a>
+                <button
+                  @click="markAsCooked(recipe)"
+                  class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-xs rounded-lg flex items-center justify-center gap-1 transition duration-200"
+                >
+                  <ChefHat class="w-4 h-4" />
+                  <span>Mark as Cooked</span>
+                </button>
+                <router-link
+                  :to="`/recipes/${recipe.id}/similar`"
+                  class="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 text-xs rounded-lg flex items-center justify-center gap-1 transition duration-200"
+                >
+                  <ChefHat class="w-4 h-4" />
+                  <span>Find Similar Recipes</span>
+                </router-link>
               </div>
             </div>
           </div>

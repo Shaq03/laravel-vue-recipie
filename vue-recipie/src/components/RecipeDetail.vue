@@ -86,6 +86,25 @@ const toggleFavorite = async () => {
   }
 };
 
+const markAsCooked = async () => {
+  try {
+    const response = await axios.post('/api/v1/cooking-history', {
+      recipe_id: recipe.value.id,
+      rating: 0,
+      notes: ''
+    });
+    
+    // Show success message
+    alert('Recipe added to your cooking history! You can now rate it and add notes in your cooking history page.');
+    
+
+    await fetchRecipe();
+  } catch (err) {
+    console.error('Error marking recipe as cooked:', err);
+    alert('Failed to add recipe to cooking history. Please try again.');
+  }
+};
+
 onMounted(async () => {
   await Promise.all([fetchRecipe(), fetchUserPreferences()]);
 });
@@ -144,7 +163,14 @@ onMounted(async () => {
         </div>
 
         <!-- Similar Recipes Button -->
-        <div class="mt-8 flex justify-center">
+        <div class="mt-8 flex justify-center space-x-4">
+          <button
+            @click="markAsCooked"
+            class="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-full shadow-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:scale-105"
+          >
+            <ChefHat class="w-6 h-6 mr-3" />
+            Mark as Cooked
+          </button>
           <router-link
             :to="`/recipes/${recipe.id}/similar`"
             class="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-full shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:scale-105"

@@ -5,21 +5,21 @@ import { useStore } from 'vuex';
 const instance = axios.create({
     baseURL: 'http://localhost:8000',
     headers: {
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
     }
 });
 
-// Add a request interceptor to add the auth token
+// Add a request interceptor to include the auth token
 instance.interceptors.request.use(
-    (config) => {
+    config => {
         const token = localStorage.getItem('token');
         if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
+            config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     },
-    (error) => {
+    error => {
         return Promise.reject(error);
     }
 );

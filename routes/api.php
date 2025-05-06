@@ -9,6 +9,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserRecipeController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\CookingHistoryController;
 
 // Public routes
 Route::post('/v1/register', [AuthController::class, 'register']);
@@ -45,6 +46,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/recipes/{id}', [RecipeController::class, 'show']);
         Route::put('/recipes/{recipe}', [RecipeController::class, 'update']);
         Route::delete('/recipes/{recipe}', [RecipeController::class, 'destroy']);
+
+        // Cooking History Routes
+        Route::get('/cooking-history', [CookingHistoryController::class, 'index']);
+        Route::post('/cooking-history', [CookingHistoryController::class, 'store']);
+        Route::put('/cooking-history/{cookingHistory}', [CookingHistoryController::class, 'update']);
+        Route::delete('/cooking-history/{cookingHistory}', [CookingHistoryController::class, 'destroy']);
 
         // AI recommendations
         Route::post('/ai/recommendations', [AIRecommendationController::class, 'getRecommendations']);

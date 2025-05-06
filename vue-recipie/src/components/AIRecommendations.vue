@@ -212,6 +212,21 @@ const clearIngredients = () => {
   statusMessage.value = '';
   console.log('Cleared ingredients and search results');
 };
+
+const markAsCooked = async (recipe) => {
+  try {
+    const response = await axios.post('/api/v1/cooking-history', {
+      recipe_id: recipe.id,
+      rating: 1,
+      notes: ''
+    });
+    
+    alert('Recipe added to your cooking history! You can now update your rating and add notes in your cooking history page.');
+  } catch (err) {
+    console.error('Error marking recipe as cooked:', err);
+    alert('Failed to add recipe to cooking history. Please try again.');
+  }
+};
 </script>
 
 <template>
@@ -369,43 +384,34 @@ const clearIngredients = () => {
               </button>
             </div>
           </div>
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ rec.recipe.title }}</h3>
-            <div class="mb-3">
-              <div class="flex items-center">
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                  <div class="bg-indigo-600 h-2.5 rounded-full" :style="{ width: `${rec.normalized_score * 100}%` }"></div>
-                </div>
-                <span class="ml-2 text-sm font-medium text-gray-600">
-                  {{ Math.round(rec.normalized_score * 100) }}% Match
-                </span>
-              </div>
+          <div class="p-6">
+            <h3 class="text-xl font-bold mb-2 text-gray-800">{{ rec.recipe.title }}</h3>
+            <p class="text-gray-600 mb-4 line-clamp-2">{{ rec.recipe.description }}</p>
+            <div class="flex justify-between text-sm text-gray-500 mb-4">
+              <span class="flex items-center">
+                <Clock class="w-5 h-5 mr-1" />
+                {{ rec.recipe.cooking_time }} min
+              </span>
+              <span class="flex items-center">
+                <Users class="w-5 h-5 mr-1" />
+                {{ rec.recipe.servings }} servings
+              </span>
             </div>
-            <div class="space-y-2">
-              <div class="flex items-center text-sm text-gray-600">
-                <Clock class="h-4 w-4 mr-1" />
-                <span>{{ rec.recipe.cooking_time || '?' }} mins</span>
-                <span class="mx-2">•</span>
-                <span class="capitalize">{{ rec.recipe.difficulty }}</span>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-for="cuisine in rec.recipe.cuisines"
-                  :key="cuisine"
-                  class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
-                >
-                  {{ cuisine }}
-                </span>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-for="tag in rec.recipe.tags"
-                  :key="tag"
-                  class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full"
-                >
-                  {{ tag }}
-                </span>
-              </div>
+            <div class="mt-4 flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0">
+              <button
+                @click="markAsCooked(rec.recipe)"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                <ChefHat class="w-5 h-5 mr-2" />
+                Mark as Cooked
+              </button>
+              <router-link
+                :to="`/recipes/${rec.recipe.id}/similar`"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <ChefHat class="w-5 h-5 mr-2" />
+                Find Similar Recipes
+              </router-link>
             </div>
           </div>
         </div>
