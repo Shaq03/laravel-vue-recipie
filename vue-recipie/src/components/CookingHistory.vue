@@ -25,7 +25,6 @@ const fetchCookingHistory = async () => {
     const response = await axios.get('/api/v1/cooking-history');
     cookingHistory.value = response.data;
     
-    // If we have cooking history, fetch recommendations
     if (cookingHistory.value.length > 0) {
       await fetchRecommendations();
     }
@@ -84,7 +83,6 @@ const deleteEntry = async (entry) => {
     await axios.delete(`/api/v1/cooking-history/${entry.id}`);
     cookingHistory.value = cookingHistory.value.filter(e => e.id !== entry.id);
     
-    // Refresh recommendations after deleting
     if (cookingHistory.value.length > 0) {
       await fetchRecommendations();
     } else {
@@ -110,7 +108,6 @@ const addToHistory = async (recipe) => {
   }
 };
 
-// Computed properties for statistics
 const averageRating = computed(() => {
   if (cookingHistory.value.length === 0) return 0;
   const sum = cookingHistory.value.reduce((acc, entry) => acc + entry.rating, 0);
@@ -197,7 +194,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Loading State -->
       <div v-if="loading" class="mt-16 text-center">
         <div class="bg-white rounded-lg shadow-sm p-8 max-w-2xl mx-auto">
           <ChefHat class="h-12 w-12 text-indigo-400 mx-auto mb-4 animate-spin" />
@@ -205,7 +201,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Error State -->
       <div v-else-if="error" class="mt-16 text-center">
         <div class="bg-white rounded-lg shadow-sm p-8 max-w-2xl mx-auto">
           <p class="text-lg text-red-600">{{ error }}</p>
@@ -218,7 +213,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Empty State -->
       <div v-else-if="cookingHistory.length === 0" class="mt-16 text-center">
         <div class="bg-white rounded-lg shadow-sm p-8 max-w-2xl mx-auto">
           <History class="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -243,7 +237,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Cooking History List -->
       <div v-else class="mt-16">
         <div class="flex justify-between items-center mb-6">
           <h2 class="text-2xl font-bold text-gray-900">Your Cooking History</h2>
@@ -255,7 +248,6 @@ onMounted(() => {
           </button>
         </div>
 
-        <!-- Recommendations Section -->
         <div v-if="showRecommendations && recommendations.length > 0" class="mb-8">
           <h3 class="text-lg font-medium text-gray-900 mb-4">Recommended Recipes</h3>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

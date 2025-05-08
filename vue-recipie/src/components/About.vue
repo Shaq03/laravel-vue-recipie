@@ -15,7 +15,7 @@ import Navigation from './Navigation.vue';
       <div class="mt-16 max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-8">
         <h2 class="text-2xl font-semibold text-indigo-700 mb-4">Our Story</h2>
         <p class="mb-6 text-gray-700">
-          Recipe Hub was created by a group of friends who love to cook and wanted a place to swap their favorite recipes. We believe that food brings people together, and everyone has something delicious to share. Whether you're a kitchen pro or just starting out, you'll find inspiration and community here.
+          Recipe Hub was created for people who love to cook and wanted a place to swap their favorite recipes. We believe that food brings people together, and everyone has something delicious to share. Whether you're a kitchen pro or just starting out, you'll find inspiration and community here.
         </p>
         <h2 class="text-2xl font-semibold text-indigo-700 mb-4">What We Offer</h2>
         <ul class="list-disc list-inside mb-6 text-gray-700">

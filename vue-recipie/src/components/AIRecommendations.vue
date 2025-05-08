@@ -619,6 +619,10 @@ onMounted(async () => {
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <div v-for="rec in recommendations" :key="rec.recipe.id" class="bg-white rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-200" @click="selectedRecipe = rec.recipe; showModal = true" style="cursor:pointer;">
             <div class="relative">
+              <div v-if="rec.ml_prediction !== null" class="absolute top-0 left-0 m-2 z-20">
+                <span v-if="rec.ml_prediction == 1" class="bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded shadow">ML Match</span>
+                <span v-else class="bg-gray-400 text-white text-xs font-semibold px-2 py-0.5 rounded shadow">No ML Match</span>
+              </div>
               <img :src="rec.recipe.image_url || '/default-recipe.jpg'" :alt="rec.recipe.title" class="w-full h-48 object-cover" />
               <div class="absolute top-0 right-0 m-2">
                 <button
@@ -632,16 +636,11 @@ onMounted(async () => {
               <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
                 <div class="flex items-center justify-between">
                   <span class="text-sm">AI Confidence</span>
-                  <span class="text-sm font-bold">{{ Math.round(Math.max(0, Math.min(1, ((rec.normalized_score || 0) * 0.6 + (rec.ml_score || 0) * 0.4))) * 100) }}%</span>
+                  <span class="text-sm font-bold">{{ Math.round(Math.max(0, Math.min(1, rec.normalized_score || 0)) * 100) }}%</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                  <div class="bg-indigo-600 h-1.5 rounded-full" :style="{ width: `${Math.max(0, Math.min(1, ((rec.normalized_score || 0) * 0.6 + (rec.ml_score || 0) * 0.4))) * 100}%` }"></div>
+                  <div class="bg-indigo-600 h-1.5 rounded-full" :style="{ width: `${Math.max(0, Math.min(1, rec.normalized_score || 0)) * 100}%` }"></div>
                 </div>
-              </div>
-              <div v-if="rec.ml_prediction !== null" class="mt-1 flex items-center">
-                <span v-if="rec.ml_prediction == 1" class="bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded mr-2">ML Match</span>
-                <span v-else class="bg-gray-400 text-white text-xs font-semibold px-2 py-0.5 rounded mr-2">No ML Match</span>
-                <span v-if="rec.ml_confidence !== null" class="ml-2 text-xs text-white">ML Confidence: {{ Math.round(Math.max(0, Math.min(1, rec.ml_confidence)) * 100) }}%</span>
               </div>
               <div v-if="rec.ml_confidence !== null" class="w-full bg-green-100 rounded-full h-1 mt-1">
                 <div class="bg-green-500 h-1 rounded-full" :style="{ width: `${Math.max(0, Math.min(1, rec.ml_confidence)) * 100}%` }"></div>
