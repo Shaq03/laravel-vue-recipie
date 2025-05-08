@@ -8,6 +8,8 @@ use App\Models\UserPreference;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Collection;
+use Phpml\Classification\SVC;
+use Phpml\SupportVectorMachine\Kernel;
 
 class AIRecommendationService
 {
@@ -16,8 +18,8 @@ class AIRecommendationService
     private $cookingHistory = [];
     private $ingredientSimilarityMatrix = [];
     private $recipeSimilarityMatrix = [];
-    private const MIN_SIMILARITY_THRESHOLD = 0.85; // Threshold to consider recipes too similar
-    private const DIVERSITY_PENALTY = 0.2; // Penalty for similar recipes to promote variety
+    private const MIN_SIMILARITY_THRESHOLD = 0.85; 
+    private const DIVERSITY_PENALTY = 0.2; 
 
     public function __construct()
     {
@@ -27,7 +29,6 @@ class AIRecommendationService
 
     private function initializeRecipeDatabase()
     {
-        // Load only AI-generated recipes
         $this->recipeDatabase = Recipe::where('source', 'ai')
             ->with(['ratings', 'favoritedBy'])
             ->get()
@@ -36,7 +37,6 @@ class AIRecommendationService
 
     private function buildSimilarityMatrices()
     {
-        // Build ingredient similarity matrix
         foreach ($this->recipeDatabase as $recipe1) {
             foreach ($this->recipeDatabase as $recipe2) {
                 if ($recipe1['id'] !== $recipe2['id']) {
@@ -49,7 +49,6 @@ class AIRecommendationService
             }
         }
 
-        // Build recipe similarity matrix
         foreach ($this->recipeDatabase as $recipe1) {
             foreach ($this->recipeDatabase as $recipe2) {
                 if ($recipe1['id'] !== $recipe2['id']) {
@@ -60,269 +59,80 @@ class AIRecommendationService
         }
     }
 
-    public function getRecommendations(User $user, array $ingredients)
+    private function calculateMLScore($recipe, $ingredients)
     {
-        try {
-            // Reload recipe database to ensure we have the latest data
-            $this->initializeRecipeDatabase();
-            
-            // Get user preferences
-            $this->loadUserData($user);
+        $scores = [
+            'ingredient_match' => $this->calculateIngredientMatchScore($recipe, $ingredients),
+            'preference_match' => $this->calculatePreferenceScore($recipe),
+            'complexity_match' => $this->calculateComplexityScore($recipe),
+            'seasonal_match' => $this->calculateSeasonalScore($recipe)
+        ];
 
-            // Get all AI recipes
-            $recipes = Recipe::where('source', 'ai')
-                ->with(['ratings', 'favoritedBy'])
-                ->get();
-
-            $recommendations = [];
-            $filteredOut = [
-                'ingredients' => 0,
-                'dietary' => 0,
-                'skill_level' => 0,
-                'cuisine' => 0
-            ];
-
-            foreach ($recipes as $recipe) {
-                // Skip if no ingredients provided and recipe doesn't match user preferences
-                if (empty($ingredients) && !empty($this->userPreferences)) {
-                    // First check cuisine preferences if set
-                    if (!empty($this->userPreferences['preferred_cuisines'])) {
-                        $recipeCuisines = is_array($recipe->cuisines) ? $recipe->cuisines : json_decode($recipe->cuisines, true);
-                        $hasMatchingCuisine = false;
-                        foreach ($this->userPreferences['preferred_cuisines'] as $preferredCuisine) {
-                            if (in_array(strtolower($preferredCuisine), array_map('strtolower', $recipeCuisines))) {
-                                $hasMatchingCuisine = true;
-                                break;
-                            }
-                        }
-                        if (!$hasMatchingCuisine) {
-                            $filteredOut['cuisine']++;
-                            continue;
-                        }
-                    }
-                }
-
-                // Calculate ingredient match score if ingredients provided
-                $ingredientScore = empty($ingredients) ? 1 : $this->calculateIngredientMatchScore($recipe, $ingredients);
-                
-                // Skip recipes with no ingredient matches if ingredients were provided
-                if (!empty($ingredients) && $ingredientScore <= 0) {
-                    $filteredOut['ingredients']++;
-                    continue;
-                }
-
-                // Strictly check dietary restrictions
-                if (!empty($this->userPreferences['dietary_restrictions'])) {
-                    $dietaryScore = $this->calculateDietaryScore($recipe);
-                    if ($dietaryScore === 0) {
-                        $filteredOut['dietary']++;
-                        continue;
-                    }
-                }
-
-                // Check difficulty level if user preference exists
-                if (!empty($this->userPreferences['cooking_skill_level'])) {
-                    $skillLevel = strtolower($this->userPreferences['cooking_skill_level']);
-                    $difficulty = strtolower($recipe->difficulty);
-                    if (!$this->isRecipeSuitableForSkillLevel($skillLevel, $difficulty)) {
-                        $filteredOut['skill_level']++;
-                        continue;
-                    }
-                }
-
-                $recommendations[] = [
-                    'recipe' => $recipe,
-                    'score' => $ingredientScore,
-                    'normalized_score' => 0 // Will be normalized later
-                ];
-            }
-
-            // Log if no recommendations found
-            if (empty($recommendations)) {
-                $errorMessage = 'No recipes found that match your criteria. ';
-                
-                if ($filteredOut['ingredients'] > 0) {
-                    $errorMessage .= 'Try different ingredients. ';
-                }
-                if ($filteredOut['dietary'] > 0) {
-                    $errorMessage .= 'No recipes match your dietary restrictions. ';
-                }
-                if ($filteredOut['skill_level'] > 0) {
-                    $errorMessage .= 'No recipes match your cooking skill level. ';
-                }
-                if ($filteredOut['cuisine'] > 0) {
-                    $errorMessage .= 'No recipes match your preferred cuisines. ';
-                }
-
-                Log::info('No recommendations found', [
-                    'user_id' => $user->id,
-                    'ingredients' => $ingredients,
-                    'filtered_out' => $filteredOut,
-                    'message' => $errorMessage
-                ]);
-
-                return [];
-            }
-
-            // Sort by score
-            usort($recommendations, function($a, $b) {
-                return $b['score'] <=> $a['score'];
-            });
-
-            // Normalize scores
-            if (!empty($recommendations)) {
-                $maxScore = max(array_column($recommendations, 'score'));
-                foreach ($recommendations as &$recommendation) {
-                    $recommendation['normalized_score'] = $recommendation['score'] / $maxScore;
-                }
-            }
-
-            return $recommendations;
-        } catch (\Exception $e) {
-            Log::error('AI Recommendation Error', [
-                'error' => $e->getMessage(),
-                'user_id' => $user->id,
-                'ingredients' => $ingredients,
-                'filtered_out' => $filteredOut ?? []
-            ]);
-            throw $e;
-        }
-    }
-
-    private function loadUserData(User $user)
-    {
-        // Load user preferences
-        $this->userPreferences = $user->preferences ? $user->preferences->toArray() : [];
-
-        // Load cooking history
-        $this->cookingHistory = $user->cookingHistory()->with('recipe')->get()->toArray();
-    }
-
-    private function calculateIngredientMatchScore($recipe, $ingredients)
-    {
-        $recipeIngredients = is_array($recipe->ingredients) ? $recipe->ingredients : json_decode($recipe->ingredients, true);
-        if (!is_array($recipeIngredients)) {
-            return 0;
-        }
-
-        // Normalize ingredients for comparison
-        $recipeIngredients = array_map(function($ingredient) {
-            return strtolower(trim($ingredient));
-        }, $recipeIngredients);
-        
-        $searchIngredients = array_map(function($ingredient) {
-            return strtolower(trim($ingredient));
-        }, $ingredients);
-
-        $matches = 0;
-        $totalWeight = count($searchIngredients);
-        
-        // Return 0 if no ingredients to match against
-        if ($totalWeight === 0) {
-            return 0;
-        }
-
-        $matchedIngredients = [];
-
-        foreach ($searchIngredients as $searchIngredient) {
-            $bestMatch = 0;
-            foreach ($recipeIngredients as $recipeIngredient) {
-                // Exact match
-                if ($recipeIngredient === $searchIngredient) {
-                    $bestMatch = 1;
-                    break;
-                }
-                // Contains match
-                if (str_contains($recipeIngredient, $searchIngredient) || 
-                    str_contains($searchIngredient, $recipeIngredient)) {
-                    $bestMatch = 0.8;
-                }
-            }
-            if ($bestMatch > 0) {
-                $matches += $bestMatch;
-                $matchedIngredients[] = $searchIngredient;
-            }
-        }
-
-        // Calculate final score
-        return $matches / $totalWeight;
-    }
-
-    private function calculatePreferenceScore($recipe)
-    {
-        $score = 0;
         $weights = [
-            'cuisine' => 0.4,
-            'skill_level' => 0.3,
-            'dietary' => 0.3
+            'ingredient_match' => 0.4,
+            'preference_match' => 0.3,
+            'complexity_match' => 0.2,
+            'seasonal_match' => 0.1
         ];
 
-        // Check cuisine preferences
-        if (!empty($this->userPreferences['preferred_cuisines'])) {
-            $recipeCuisines = is_array($recipe->cuisines) ? $recipe->cuisines : json_decode($recipe->cuisines, true);
-            $commonCuisines = array_intersect(
-                array_map('strtolower', $this->userPreferences['preferred_cuisines']),
-                array_map('strtolower', $recipeCuisines ?? [])
-            );
-            $score += (count($commonCuisines) / count($this->userPreferences['preferred_cuisines'])) * $weights['cuisine'];
+        $totalScore = 0;
+        foreach ($scores as $type => $score) {
+            $totalScore += $score * $weights[$type];
         }
 
-        // Check cooking skill level
-        $skillLevel = strtolower($this->userPreferences['cooking_skill_level'] ?? 'beginner');
-        $difficulty = strtolower($recipe->difficulty ?? 'medium');
-        
-        $skillLevelScores = [
-            'beginner' => ['easy' => 1.0, 'medium' => 0.3, 'hard' => 0.0],
-            'intermediate' => ['easy' => 0.5, 'medium' => 1.0, 'hard' => 0.5],
-            'advanced' => ['easy' => 0.3, 'medium' => 0.7, 'hard' => 1.0]
-        ];
-
-        $score += ($skillLevelScores[$skillLevel][$difficulty] ?? 0) * $weights['skill_level'];
-
-        // Check dietary restrictions
-        if (!empty($this->userPreferences['dietary_restrictions'])) {
-            $dietaryScore = $this->calculateDietaryScore($recipe);
-            $score += $dietaryScore * $weights['dietary'];
-        }
-
-        return $score;
+        return $totalScore;
     }
 
-    private function calculateDietaryScore($recipe)
+    private function vectorizeIngredients($ingredients)
     {
-        $score = 1.0;
-        $dietaryRestrictions = $this->userPreferences['dietary_restrictions'] ?? [];
-        
-        if (empty($dietaryRestrictions)) {
-            return $score;
+        $vector = [];
+        foreach ($ingredients as $ingredient) {
+            $vector[strtolower($ingredient)] = 1;
         }
+        return $vector;
+    }
 
-        $recipeIngredients = is_array($recipe->ingredients) ? $recipe->ingredients : json_decode($recipe->ingredients, true);
-        
-        // Define restricted ingredients for each dietary restriction
-        $restrictedIngredients = [
-            'Vegetarian' => ['beef', 'pork', 'chicken', 'lamb', 'fish', 'seafood', 'meat'],
-            'Vegan' => ['beef', 'pork', 'chicken', 'lamb', 'fish', 'seafood', 'meat', 'milk', 'cheese', 'yogurt', 'butter', 'cream', 'eggs', 'honey'],
-            'Gluten-Free' => ['wheat', 'barley', 'rye', 'bread', 'pasta', 'flour'],
-            'Dairy-Free' => ['milk', 'cheese', 'yogurt', 'butter', 'cream'],
-            'Nut-Free' => ['peanuts', 'almonds', 'walnuts', 'cashews', 'pecans', 'hazelnuts'],
-            'Halal' => ['pork', 'alcohol', 'wine', 'beer'],
-            'Kosher' => ['pork', 'shellfish', 'mixing meat and dairy']
-        ];
+    private function calculateCosineSimilarity($vector1, $vector2)
+    {
+        $dotProduct = 0;
+        $magnitude1 = 0;
+        $magnitude2 = 0;
 
-        foreach ($dietaryRestrictions as $restriction) {
-            if (isset($restrictedIngredients[$restriction])) {
-                foreach ($restrictedIngredients[$restriction] as $ingredient) {
-                    foreach ($recipeIngredients as $recipeIngredient) {
-                        if (stripos($recipeIngredient, $ingredient) !== false) {
-                            return 0; // Recipe contains restricted ingredient
-                        }
-                    }
-                }
+        foreach ($vector1 as $key => $value) {
+            if (isset($vector2[$key])) {
+                $dotProduct += $value * $vector2[$key];
             }
+            $magnitude1 += $value * $value;
         }
 
-        return $score;
+        foreach ($vector2 as $value) {
+            $magnitude2 += $value * $value;
+        }
+
+        if ($magnitude1 == 0 || $magnitude2 == 0) {
+            return 0;
+        }
+
+        return $dotProduct / (sqrt($magnitude1) * sqrt($magnitude2));
+    }
+
+    private function calculateIngredientSetSimilarity($ingredients1, $ingredients2)
+    {
+        if (empty($ingredients1) || empty($ingredients2)) {
+            return 0;
+        }
+
+        $ingredients1 = is_string($ingredients1) ? json_decode($ingredients1, true) : $ingredients1;
+        $ingredients2 = is_string($ingredients2) ? json_decode($ingredients2, true) : $ingredients2;
+
+        if (!is_array($ingredients1) || !is_array($ingredients2)) {
+            return 0;
+        }
+
+        $intersection = array_intersect($ingredients1, $ingredients2);
+        $union = array_unique(array_merge($ingredients1, $ingredients2));
+        
+        return count($intersection) / count($union);
     }
 
     private function calculateRecipeSimilarity($recipe1, $recipe2)
@@ -376,38 +186,15 @@ class AIRecommendationService
         );
     }
 
-    private function calculateIngredientSetSimilarity($ingredients1, $ingredients2)
-    {
-        if (empty($ingredients1) || empty($ingredients2)) {
-            return 0;
-        }
-
-        // Ensure ingredients are arrays
-        $ingredients1 = is_string($ingredients1) ? json_decode($ingredients1, true) : $ingredients1;
-        $ingredients2 = is_string($ingredients2) ? json_decode($ingredients2, true) : $ingredients2;
-
-        if (!is_array($ingredients1) || !is_array($ingredients2)) {
-            return 0;
-        }
-
-        // Calculate Jaccard similarity
-        $intersection = array_intersect($ingredients1, $ingredients2);
-        $union = array_unique(array_merge($ingredients1, $ingredients2));
-        
-        return count($intersection) / count($union);
-    }
-
     private function calculateCuisineSimilarity($cuisines1, $cuisines2)
     {
         if (empty($cuisines1) || empty($cuisines2)) {
             return 0;
         }
 
-        // Normalize cuisines to lowercase
         $cuisines1 = array_map('strtolower', $cuisines1);
         $cuisines2 = array_map('strtolower', $cuisines2);
 
-        // Define cuisine variations and synonyms
         $cuisineVariations = [
             'italian' => ['italian', 'mediterranean', 'tuscan', 'sicilian', 'roman'],
             'mexican' => ['mexican', 'tex-mex', 'latin american'],
@@ -427,13 +214,11 @@ class AIRecommendationService
         foreach ($cuisines1 as $cuisine1) {
             $maxSimilarity = 0;
             foreach ($cuisines2 as $cuisine2) {
-                // Check direct match
                 if ($cuisine1 === $cuisine2) {
                     $maxSimilarity = 1;
                     break;
                 }
 
-                // Check variations
                 foreach ($cuisineVariations as $mainCuisine => $variations) {
                     if (in_array($cuisine1, $variations) && in_array($cuisine2, $variations)) {
                         $maxSimilarity = 0.8;
@@ -441,7 +226,6 @@ class AIRecommendationService
                     }
                 }
 
-                // Check partial match
                 if (stripos($cuisine1, $cuisine2) !== false || stripos($cuisine2, $cuisine1) !== false) {
                     $maxSimilarity = max($maxSimilarity, 0.6);
                 }
@@ -463,7 +247,7 @@ class AIRecommendationService
 
     private function calculateTimeSimilarity($time1, $time2)
     {
-        $maxTime = 60; // Maximum cooking time in minutes
+        $maxTime = 60; 
         return 1 - (abs($time1 - $time2) / $maxTime);
     }
 
@@ -480,43 +264,6 @@ class AIRecommendationService
     private function calculatePopularitySimilarity($score1, $score2)
     {
         return 1 - abs($score1 - $score2);
-    }
-
-    private function applyContentBasedFiltering(array $recommendations)
-    {
-        $filtered = [];
-        foreach ($recommendations as $recommendation) {
-            $recipe = $recommendation['recipe'];
-            $score = $recommendation['score'];
-
-            // Apply content-based scoring
-            $contentScore = $this->calculateContentScore($recipe);
-            $finalScore = ($score * 0.7) + ($contentScore * 0.3);
-
-            $filtered[] = [
-                'recipe' => $recipe,
-                'score' => $finalScore
-            ];
-        }
-
-        return $filtered;
-    }
-
-    private function calculateContentScore($recipe)
-    {
-        $score = 0;
-
-        // Consider recipe popularity
-        $score += ($recipe['popularity_score'] ?? 0) * 0.3;
-
-        // Consider average rating
-        $score += ($recipe['average_rating'] ?? 0) * 0.3;
-
-        // Consider recipe complexity
-        $complexityScore = $this->calculateComplexityScore($recipe);
-        $score += $complexityScore * 0.4;
-
-        return $score;
     }
 
     private function calculateComplexityScore($recipe)
@@ -537,179 +284,6 @@ class AIRecommendationService
         ][$difficulty] ?? 2;
     }
 
-    private function applyCollaborativeFiltering(array $recommendations)
-    {
-        $filtered = [];
-        foreach ($recommendations as $recommendation) {
-            $recipe = $recommendation['recipe'];
-            $score = $recommendation['score'];
-
-            // Apply collaborative filtering
-            $collaborativeScore = $this->calculateCollaborativeScore($recipe);
-            $finalScore = ($score * 0.6) + ($collaborativeScore * 0.4);
-
-            $filtered[] = [
-                'recipe' => $recipe,
-                'score' => $finalScore
-            ];
-        }
-
-        return $filtered;
-    }
-
-    private function calculateCollaborativeScore($recipe)
-    {
-        $score = 0;
-        $similarRecipes = $this->getSimilarRecipes($recipe['id'], 5);
-        $totalSimilarity = 0;
-
-        foreach ($similarRecipes as $similarRecipeId => $similarity) {
-            $similarRecipe = collect($this->recipeDatabase)->firstWhere('id', $similarRecipeId);
-            if ($similarRecipe) {
-                $score += $similarity * ($similarRecipe['average_rating'] ?? 0);
-                $totalSimilarity += $similarity;
-            }
-        }
-
-        return $totalSimilarity > 0 ? $score / $totalSimilarity : 0;
-    }
-
-    private function getSimilarRecipes($recipeId, $limit)
-    {
-        $similarities = [];
-        foreach ($this->recipeDatabase as $recipe) {
-            if ($recipe['id'] !== $recipeId) {
-                $similarities[$recipe['id']] = $this->calculateRecipeSimilarity(
-                    $this->recipeDatabase[$recipeId] ?? $recipe,
-                    $recipe
-                );
-            }
-        }
-        
-        arsort($similarities);
-        return array_slice($similarities, 0, $limit, true);
-    }
-
-    private function applyPersonalization(array $recommendations)
-    {
-        $personalized = [];
-        $filteredOut = [
-            'skill_level' => 0,
-            'dietary' => 0,
-            'cuisine' => 0,
-            'seasonal' => 0
-        ];
-
-        foreach ($recommendations as $recommendation) {
-            $recipe = $recommendation['recipe'];
-            $score = $recommendation['score'];
-
-            // Apply personalization
-            $personalizationScore = $this->calculatePersonalizationScore($recipe);
-            
-            // Strictly filter based on cooking skill level
-            $skillLevel = $this->userPreferences['cooking_skill_level'] ?? 'beginner';
-            $difficulty = $recipe['difficulty'] ?? 'medium';
-            
-            // Skip recipes that don't match the user's skill level
-            if (!$this->isRecipeSuitableForSkillLevel($skillLevel, $difficulty)) {
-                $filteredOut['skill_level']++;
-                continue;
-            }
-
-            // Log detailed preference scores
-            Log::debug('Recipe Preference Scores', [
-                'recipe_id' => $recipe['id'],
-                'title' => $recipe['title'],
-                'skill_level_match' => $this->isRecipeSuitableForSkillLevel($skillLevel, $difficulty),
-                'dietary_score' => $this->calculateDietaryScore($recipe),
-                'cuisine_score' => $this->calculateCuisineSimilarity(
-                    $this->userPreferences['preferred_cuisines'] ?? [],
-                    $recipe['cuisines'] ?? []
-                ),
-                'seasonal_score' => $this->calculateSeasonalScore($recipe),
-                'final_personalization_score' => $personalizationScore
-            ]);
-
-            $finalScore = ($score * 0.5) + ($personalizationScore * 0.5);
-
-            $personalized[] = [
-                'recipe' => $recipe,
-                'score' => $finalScore
-            ];
-        }
-
-        // Log filtering statistics
-        Log::info('Preference-based Filtering Results', [
-            'total_recipes' => count($recommendations),
-            'filtered_out' => $filteredOut,
-            'remaining_recipes' => count($personalized)
-        ]);
-
-        return $personalized;
-    }
-
-    private function isRecipeSuitableForSkillLevel($skillLevel, $difficulty)
-    {
-        $skillLevels = [
-            'beginner' => ['easy'],
-            'intermediate' => ['easy', 'medium'],
-            'advanced' => ['easy', 'medium', 'hard']
-        ];
-
-        return in_array($difficulty, $skillLevels[$skillLevel] ?? []);
-    }
-
-    private function calculatePersonalizationScore($recipe)
-    {
-        $score = 0;
-        $weights = [
-            'preferences' => 0.4,
-            'history' => 0.3,
-            'dietary' => 0.3
-        ];
-
-        // Consider user preferences with higher weight
-        if (!empty($this->userPreferences)) {
-            $preferenceScore = $this->calculatePreferenceScore($recipe);
-            $score += $preferenceScore * $weights['preferences'];
-        }
-
-        // Consider cooking history
-        if (!empty($this->cookingHistory)) {
-            $historyScore = $this->calculateHistoryScore($recipe);
-            $score += $historyScore * $weights['history'];
-        }
-
-        // Consider dietary restrictions with strict filtering
-        if (!empty($this->userPreferences['dietary_restrictions'])) {
-            $dietaryScore = $this->calculateDietaryScore($recipe);
-            // If recipe doesn't meet dietary restrictions, return 0
-            if ($dietaryScore === 0) {
-                return 0;
-            }
-            $score += $dietaryScore * $weights['dietary'];
-        }
-
-        return $score;
-    }
-
-    private function calculateHistoryScore($recipe)
-    {
-        $score = 0;
-        $count = 0;
-
-        foreach ($this->cookingHistory as $history) {
-            if (isset($history['recipe'])) {
-                $similarity = $this->calculateRecipeSimilarity($recipe, $history['recipe']);
-                $score += $similarity;
-                $count++;
-            }
-        }
-
-        return $count > 0 ? $score / $count : 0;
-    }
-
     private function calculateSeasonalScore($recipe)
     {
         $currentSeason = $this->getCurrentSeason();
@@ -724,7 +298,6 @@ class AIRecommendationService
             return 0;
         }
 
-        // Check each category of seasonal ingredients
         foreach ($seasonalIngredients as $category => $ingredients) {
             $matches = 0;
             foreach ($ingredients as $ingredient) {
@@ -735,7 +308,7 @@ class AIRecommendationService
                     }
                 }
             }
-            // Weight different categories
+          
             $categoryWeight = [
                 'vegetables' => 0.5,
                 'fruits' => 0.3,
@@ -784,95 +357,361 @@ class AIRecommendationService
         return $seasonalIngredients[$season] ?? [];
     }
 
-    private function applyDiversityFiltering(array $recommendations)
+    private function calculateIngredientMatchScore($recipe, $ingredients)
     {
-        $filtered = [];
-        $seenRecipes = [];
+        $recipeIngredients = is_array($recipe->ingredients) ? $recipe->ingredients : json_decode($recipe->ingredients, true);
+        if (!is_array($recipeIngredients)) {
+            return 0;
+        }
 
-        foreach ($recommendations as $recommendation) {
-            $recipe = $recommendation['recipe'];
-            $score = $recommendation['score'];
-            $isTooSimilar = false;
+        $recipeIngredients = array_map(function($ingredient) {
+            return strtolower(trim($ingredient));
+        }, $recipeIngredients);
+        
+        $searchIngredients = array_map(function($ingredient) {
+            return strtolower(trim($ingredient));
+        }, $ingredients);
 
-            // Check similarity with already selected recipes
-            foreach ($seenRecipes as $seenRecipe) {
-                $similarity = $this->calculateRecipeSimilarity($recipe, $seenRecipe);
-                if ($similarity > self::MIN_SIMILARITY_THRESHOLD) {
-                    $isTooSimilar = true;
+        $matches = 0;
+        $totalWeight = count($searchIngredients);
+        
+        if ($totalWeight === 0) {
+            return 0;
+        }
+
+        $matchedIngredients = [];
+
+        foreach ($searchIngredients as $searchIngredient) {
+            $bestMatch = 0;
+            foreach ($recipeIngredients as $recipeIngredient) {
+                if ($recipeIngredient === $searchIngredient) {
+                    $bestMatch = 1;
                     break;
                 }
-                // Apply diversity penalty based on similarity
-                $score *= (1 - ($similarity * self::DIVERSITY_PENALTY));
+                if (str_contains($recipeIngredient, $searchIngredient) || 
+                    str_contains($searchIngredient, $recipeIngredient)) {
+                    $bestMatch = 0.8;
+                }
             }
-
-            if (!$isTooSimilar) {
-                $filtered[] = [
-                    'recipe' => $recipe,
-                    'score' => $score,
-                    'similarity_scores' => $this->calculateSimilarityScores($recipe)
-                ];
-                $seenRecipes[] = $recipe;
+            if ($bestMatch > 0) {
+                $matches += $bestMatch;
+                $matchedIngredients[] = $searchIngredient;
             }
         }
 
-        return $filtered;
+        return $matches / $totalWeight;
     }
 
-    private function calculateSimilarityScores($recipe)
+    private function calculatePreferenceScore($recipe)
+    {
+        $score = 0;
+        $weights = [
+            'cuisine' => 0.4,
+            'skill_level' => 0.3,
+            'dietary' => 0.3
+        ];
+
+        if (!empty($this->userPreferences['preferred_cuisines'])) {
+            $recipeCuisines = is_array($recipe->cuisines) ? $recipe->cuisines : json_decode($recipe->cuisines, true);
+            $commonCuisines = array_intersect(
+                array_map('strtolower', $this->userPreferences['preferred_cuisines']),
+                array_map('strtolower', $recipeCuisines ?? [])
+            );
+            $score += (count($commonCuisines) / count($this->userPreferences['preferred_cuisines'])) * $weights['cuisine'];
+        }
+
+        $skillLevel = strtolower($this->userPreferences['cooking_skill_level'] ?? 'beginner');
+        $difficulty = strtolower($recipe->difficulty ?? 'medium');
+        
+        $skillLevelScores = [
+            'beginner' => ['easy' => 1.0, 'medium' => 0.3, 'hard' => 0.0],
+            'intermediate' => ['easy' => 0.5, 'medium' => 1.0, 'hard' => 0.5],
+            'advanced' => ['easy' => 0.3, 'medium' => 0.7, 'hard' => 1.0]
+        ];
+
+        $score += ($skillLevelScores[$skillLevel][$difficulty] ?? 0) * $weights['skill_level'];
+
+        if (!empty($this->userPreferences['dietary_restrictions'])) {
+            $dietaryScore = $this->calculateDietaryScore($recipe);
+            $score += $dietaryScore * $weights['dietary'];
+        }
+
+        return $score;
+    }
+
+    private function calculateDietaryScore($recipe)
+    {
+        $score = 1.0;
+        $dietaryRestrictions = $this->userPreferences['dietary_restrictions'] ?? [];
+        
+        if (empty($dietaryRestrictions)) {
+            return $score;
+        }
+
+        $recipeIngredients = is_array($recipe->ingredients) ? $recipe->ingredients : json_decode($recipe->ingredients, true);
+        
+        $restrictedIngredients = [
+            'Vegetarian' => ['beef', 'pork', 'chicken', 'lamb', 'fish', 'seafood', 'meat'],
+            'Vegan' => ['beef', 'pork', 'chicken', 'lamb', 'fish', 'seafood', 'meat', 'milk', 'cheese', 'yogurt', 'butter', 'cream', 'eggs', 'honey'],
+            'Gluten-Free' => ['wheat', 'barley', 'rye', 'bread', 'pasta', 'flour'],
+            'Dairy-Free' => ['milk', 'cheese', 'yogurt', 'butter', 'cream'],
+            'Nut-Free' => ['peanuts', 'almonds', 'walnuts', 'cashews', 'pecans', 'hazelnuts'],
+            'Halal' => ['pork', 'alcohol', 'wine', 'beer'],
+            'Kosher' => ['pork', 'shellfish', 'mixing meat and dairy']
+        ];
+
+        foreach ($dietaryRestrictions as $restriction) {
+            if (isset($restrictedIngredients[$restriction])) {
+                foreach ($restrictedIngredients[$restriction] as $ingredient) {
+                    foreach ($recipeIngredients as $recipeIngredient) {
+                        if (stripos($recipeIngredient, $ingredient) !== false) {
+                            return 0; // Recipe contains restricted ingredient
+                        }
+                    }
+                }
+            }
+        }
+
+        return $score;
+    }
+
+    public function getRecommendations(User $user, array $ingredients)
+    {
+        try {
+            $this->initializeRecipeDatabase();
+            $this->loadUserData($user);
+
+            $recipes = Recipe::where('source', 'ai')
+                ->with(['ratings', 'favoritedBy'])
+                ->get();
+
+            $recommendations = [];
+            $filteredOut = [
+                'ingredients' => 0,
+                'dietary' => 0,
+                'skill_level' => 0,
+                'cuisine' => 0
+            ];
+
+            $mlModel = null;
+            if (file_exists(storage_path('app/ml_model.serialized'))) {
+                $mlModel = unserialize(file_get_contents(storage_path('app/ml_model.serialized')));
+            }
+
+            foreach ($recipes as $recipe) {
+                $features = $this->extractFeatures($recipe);
+                $prediction = $this->calculateMLScore($recipe, $ingredients);
+                if ($prediction === 0) {
+                    continue;
+                }
+                $ingredientScore = empty($ingredients) ? 1 : $this->calculateIngredientMatchScore($recipe, $ingredients);
+                if (!empty($ingredients) && $ingredientScore <= 0) {
+                    $filteredOut['ingredients']++;
+                    continue;
+                }
+                if (!empty($this->userPreferences['dietary_restrictions'])) {
+                    $dietaryScore = $this->calculateDietaryScore($recipe);
+                    if ($dietaryScore === 0) {
+                        $filteredOut['dietary']++;
+                        continue;
+                    }
+                }
+                if (!empty($this->userPreferences['cooking_skill_level'])) {
+                    $skillLevel = strtolower($this->userPreferences['cooking_skill_level']);
+                    $difficulty = strtolower($recipe->difficulty);
+                    if (!$this->isRecipeSuitableForSkillLevel($skillLevel, $difficulty)) {
+                        $filteredOut['skill_level']++;
+                        continue;
+                    }
+                }
+                $aiConfidenceScore = $this->calculateAIConfidenceScore($recipe, $ingredients);
+                $mlScore = $this->calculateMLScore($recipe, $ingredients);
+                $ml_prediction = null;
+                $ml_confidence = null;
+                if ($mlModel) {
+                    $mlFeatures = $this->extractFeaturesForML($recipe, $user);
+                    $ml_prediction = $mlModel->predict([$mlFeatures])[0] ?? null;
+                    if (method_exists($mlModel, 'predictProbability')) {
+                        $probs = $mlModel->predictProbability([$mlFeatures]);
+                        $ml_confidence = isset($probs[0][1]) ? $probs[0][1] : null;
+                    }
+                }
+                $recommendations[] = [
+                    'recipe' => $recipe,
+                    'score' => $ingredientScore,
+                    'normalized_score' => ($aiConfidenceScore * 0.6) + ($mlScore * 0.4),
+                    'ml_prediction' => $ml_prediction,
+                    'ml_confidence' => $ml_confidence
+                ];
+            }
+
+            if (empty($recommendations)) {
+                $errorMessage = $this->generateErrorMessage($filteredOut);
+                Log::info('No recommendations found', [
+                    'user_id' => $user->id,
+                    'ingredients' => $ingredients,
+                    'filtered_out' => $filteredOut,
+                    'message' => $errorMessage
+                ]);
+                return [];
+            }
+
+            $recommendations = $this->rankRecommendations($recommendations);
+            return $recommendations;
+        } catch (\Exception $e) {
+            Log::error('AI Recommendation Error', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+                'ingredients' => $ingredients,
+                'filtered_out' => $filteredOut ?? []
+            ]);
+            throw $e;
+        }
+    }
+
+    private function loadUserData(User $user)
+    {
+        $this->userPreferences = $user->preferences ? $user->preferences->toArray() : [];
+        $this->cookingHistory = $user->cookingHistory()->with('recipe')->get()->toArray();
+    }
+
+    private function extractFeatures($recipe)
+    {
+        $ingredients = is_array($recipe['ingredients']) ? $recipe['ingredients'] : json_decode($recipe['ingredients'], true);
+        $instructions = is_array($recipe['instructions']) ? $recipe['instructions'] : json_decode($recipe['instructions'], true);
+        
+        return [
+            'ingredient_count' => count($ingredients),
+            'instruction_count' => count($instructions),
+            'cooking_time' => $this->normalizeCookingTime($recipe['cooking_time']),
+            'difficulty_score' => $this->getDifficultyScore($recipe['difficulty']),
+            'ingredient_complexity' => $this->calculateIngredientComplexity($ingredients),
+            'instruction_complexity' => $this->calculateInstructionComplexity($instructions)
+        ];
+    }
+
+    private function normalizeCookingTime($time)
+    {
+        $time = preg_replace('/[^0-9]/', '', $time);
+        return min(1, $time / 120);
+    }
+
+    private function getDifficultyScore($difficulty)
+    {
+        return [
+            'easy' => 0.33,
+            'medium' => 0.66,
+            'hard' => 1.0
+        ][strtolower($difficulty)] ?? 0.5;
+    }
+
+    private function calculateIngredientComplexity($ingredients)
+    {
+        $complexity = 0;
+        foreach ($ingredients as $ingredient) {
+            $complexity += $this->getIngredientComplexityScore($ingredient);
+        }
+        return $complexity / count($ingredients);
+    }
+
+    private function calculateInstructionComplexity($instructions)
+    {
+        $complexity = 0;
+        foreach ($instructions as $instruction) {
+            $complexity += $this->getInstructionComplexityScore($instruction);
+        }
+        return $complexity / count($instructions);
+    }
+
+    private function getIngredientComplexityScore($ingredient)
+    {
+        $complexIngredients = [
+            'saffron', 'truffle', 'foie gras', 'quinoa', 'kombu', 'miso',
+            'tamarind', 'galangal', 'lemongrass', 'kaffir lime'
+        ];
+        
+        return in_array(strtolower($ingredient), $complexIngredients) ? 1 : 0.5;
+    }
+
+    private function getInstructionComplexityScore($instruction)
+    {
+        $complexTechniques = [
+            'sous vide', 'braise', 'confit', 'temper', 'clarify', 'emulsify',
+            'reduce', 'deglaze', 'poach', 'sauté'
+        ];
+        
+        $score = 0.5;
+        foreach ($complexTechniques as $technique) {
+            if (stripos($instruction, $technique) !== false) {
+                $score += 0.5;
+            }
+        }
+        return min(1, $score);
+    }
+
+    private function isRecipeSuitableForSkillLevel($skillLevel, $difficulty)
+    {
+        $skillLevels = [
+            'beginner' => ['easy'],
+            'intermediate' => ['easy', 'medium'],
+            'advanced' => ['easy', 'medium', 'hard']
+        ];
+
+        return in_array($difficulty, $skillLevels[$skillLevel] ?? []);
+    }
+
+    private function calculateAIConfidenceScore($recipe, $ingredients)
     {
         $scores = [];
         
-        // Calculate similarity with user's favorite recipes
-        if (!empty($this->userPreferences['favorite_recipes'])) {
-            foreach ($this->userPreferences['favorite_recipes'] as $favoriteRecipe) {
-                $scores['favorites'][] = [
-                    'recipe_id' => $favoriteRecipe['id'],
-                    'title' => $favoriteRecipe['title'],
-                    'similarity' => $this->calculateRecipeSimilarity($recipe, $favoriteRecipe)
-                ];
+        // Ingredient matching confidence
+        $scores[] = $this->calculateIngredientMatchScore($recipe, $ingredients);
+        
+        // Recipe complexity confidence
+        $scores[] = $this->calculateComplexityScore($recipe);
+        
+        // User preference matching confidence
+        $scores[] = $this->calculatePreferenceScore($recipe);
+        
+        // Seasonal relevance confidence
+        if ($this->userPreferences['seasonal_preferences'] ?? false) {
+            $scores[] = $this->calculateSeasonalScore($recipe);
+        }
+        
+        // Calculate weighted average
+        $weights = [0.4, 0.2, 0.2, 0.2]; // Adjust weights based on importance
+        $weightedSum = 0;
+        $weightSum = 0;
+        
+        foreach ($scores as $index => $score) {
+            if (isset($weights[$index])) {
+                $weightedSum += $score * $weights[$index];
+                $weightSum += $weights[$index];
             }
         }
-
-        // Calculate similarity with recently cooked recipes
-        if (!empty($this->cookingHistory)) {
-            foreach (array_slice($this->cookingHistory, 0, 5) as $historyItem) {
-                if (isset($historyItem['recipe'])) {
-                    $scores['history'][] = [
-                        'recipe_id' => $historyItem['recipe']['id'],
-                        'title' => $historyItem['recipe']['title'],
-                        'similarity' => $this->calculateRecipeSimilarity($recipe, $historyItem['recipe'])
-                    ];
-                }
-            }
-        }
-
-        return $scores;
+        
+        return $weightSum > 0 ? $weightedSum / $weightSum : 0;
     }
 
     private function rankRecommendations(array $recommendations)
     {
-        // If no recommendations, return empty array
         if (empty($recommendations)) {
             Log::warning('No recommendations to rank');
             return [];
         }
 
-        // Sort by score in descending order
         usort($recommendations, function($a, $b) {
             return $b['score'] <=> $a['score'];
         });
 
-        // Return top 15 recommendations with similarity scores
         $topRecommendations = array_slice($recommendations, 0, 15);
 
-        // Add normalized scores
         $maxScore = max(array_column($topRecommendations, 'score'));
         if ($maxScore > 0) {
             foreach ($topRecommendations as &$recommendation) {
                 $recommendation['normalized_score'] = $recommendation['score'] / $maxScore;
             }
         } else {
-            // If all scores are 0, set normalized score to 0
             foreach ($topRecommendations as &$recommendation) {
                 $recommendation['normalized_score'] = 0;
             }
@@ -883,7 +722,6 @@ class AIRecommendationService
 
     private function getBasicRecipes(array $ingredients)
     {
-        // Get some basic recipes that use common ingredients
         $basicRecipes = Recipe::where('source', 'ai')
             ->where(function($query) use ($ingredients) {
                 foreach ($ingredients as $ingredient) {
@@ -897,7 +735,6 @@ class AIRecommendationService
             ->get()
             ->toArray();
 
-        // If no recipes found, get some random AI recipes
         if (empty($basicRecipes)) {
             $basicRecipes = Recipe::where('source', 'ai')
                 ->with(['ratings', 'favoritedBy'])
@@ -910,9 +747,58 @@ class AIRecommendationService
         return array_map(function($recipe) {
             return [
                 'recipe' => $recipe,
-                'score' => 0.5, // Basic score for fallback recipes
+                'score' => 0.5, 
                 'normalized_score' => 0.5
             ];
         }, $basicRecipes);
+    }
+
+    private function generateErrorMessage($filteredOut)
+    {
+        $messages = [];
+        
+        if ($filteredOut['ingredients'] > 0) {
+            $messages[] = 'Try different ingredients';
+        }
+        if ($filteredOut['dietary'] > 0) {
+            $messages[] = 'No recipes match your dietary restrictions';
+        }
+        if ($filteredOut['skill_level'] > 0) {
+            $messages[] = 'No recipes match your cooking skill level';
+        }
+        if ($filteredOut['cuisine'] > 0) {
+            $messages[] = 'No recipes match your preferred cuisines';
+        }
+        
+        return 'No recipes found that match your criteria. ' . implode('. ', $messages);
+    }
+
+    public function trainModel()
+    {
+        $samples = [];
+        $labels = [];
+        $histories = \App\Models\CookingHistory::with('recipe', 'user')->get();
+        foreach ($histories as $history) {
+            $features = $this->extractFeaturesForML($history->recipe, $history->user);
+            $samples[] = $features;
+            $labels[] = $history->rating >= 4 ? 1 : 0;
+        }
+        $classifier = new SVC(Kernel::LINEAR, 1000);
+        $classifier->train($samples, $labels);
+        file_put_contents(storage_path('app/ml_model.serialized'), serialize($classifier));
+    }
+
+    private function extractFeaturesForML($recipe, $user)
+    {
+        $ingredientCount = is_array($recipe->ingredients) ? count($recipe->ingredients) : count(json_decode($recipe->ingredients, true));
+        $cookingTime = is_numeric($recipe->cooking_time) ? (int)$recipe->cooking_time : (int)preg_replace('/[^0-9]/', '', $recipe->cooking_time);
+        $difficulty = ['easy' => 1, 'medium' => 2, 'hard' => 3][strtolower($recipe->difficulty ?? 'medium')] ?? 2;
+        $userSkill = ['beginner' => 1, 'intermediate' => 2, 'advanced' => 3][strtolower($user->preferences->cooking_skill_level ?? 'beginner')] ?? 1;
+        return [
+            $ingredientCount,
+            $cookingTime,
+            $difficulty,
+            $userSkill
+        ];
     }
 } 
