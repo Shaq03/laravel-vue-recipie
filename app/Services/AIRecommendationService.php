@@ -532,16 +532,30 @@ class AIRecommendationService
                     $mlFeatures = $this->extractFeaturesForML($recipe, $user);
                     $ml_prediction = $mlModel->predict([$mlFeatures])[0] ?? null;
                     if (method_exists($mlModel, 'predictProbability')) {
-                        $probs = $mlModel->predictProbability([$mlFeatures]);
-                        $ml_confidence = isset($probs[0][1]) ? $probs[0][1] : null;
+                        try {
+                            $probs = $mlModel->predictProbability([$mlFeatures]);
+                            $ml_confidence = isset($probs[0][1]) ? $probs[0][1] : null;
+                        } catch (\Throwable $e) {
+                            $ml_confidence = null;
+                        }
+                    } else {
+                        $ml_confidence = null;
                     }
                 }
+                $ingredient_match = $this->calculateIngredientMatchScore($recipe, $ingredients);
+                $preference_match = $this->calculatePreferenceScore($recipe);
+                $complexity_match = $this->calculateComplexityScore($recipe);
+                $seasonal_match = $this->calculateSeasonalScore($recipe);
                 $recommendations[] = [
                     'recipe' => $recipe,
                     'score' => $ingredientScore,
                     'normalized_score' => ($aiConfidenceScore * 0.6) + ($mlScore * 0.4),
                     'ml_prediction' => $ml_prediction,
-                    'ml_confidence' => $ml_confidence
+                    'ml_confidence' => $ml_confidence,
+                    'ingredient_match' => $ingredient_match,
+                    'preference_match' => $preference_match,
+                    'complexity_match' => $complexity_match,
+                    'seasonal_match' => $seasonal_match
                 ];
             }
 

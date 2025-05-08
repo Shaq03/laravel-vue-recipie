@@ -226,10 +226,10 @@ const getRecommendations = async () => {
         const enhancedRecommendations = response.data.recommendations.map(rec => {
           const mlScore = calculateMLScore(rec.recipe);
           const mlInsights = {
-            ingredientMatch: calculateIngredientMatch(rec.recipe),
-            complexityMatch: calculateComplexityMatch(rec.recipe),
-            preferenceMatch: calculatePreferenceMatch(rec.recipe),
-            seasonalMatch: calculateSeasonalMatch(rec.recipe)
+            ingredientMatch: rec.recipe.ingredient_match * 100,
+            complexityMatch: rec.recipe.complexity_match * 100,
+            preferenceMatch: rec.recipe.preference_match * 100,
+            seasonalMatch: rec.recipe.seasonal_match * 100
           };
           
           return {
@@ -246,7 +246,12 @@ const getRecommendations = async () => {
         });
 
         store.commit('SET_AI_SEARCH_RESULTS', sortedRecommendations);
-        mlInsights.value = sortedRecommendations[0]?.ml_insights;
+        mlInsights.value = {
+          ingredientMatch: sortedRecommendations[0]?.ingredient_match * 100,
+          complexityMatch: sortedRecommendations[0]?.complexity_match * 100,
+          preferenceMatch: sortedRecommendations[0]?.preference_match * 100,
+          seasonalMatch: sortedRecommendations[0]?.seasonal_match * 100
+        };
         statusMessage.value = `Found ${sortedRecommendations.length} recipes matching your ingredients and preferences`;
       }
     }

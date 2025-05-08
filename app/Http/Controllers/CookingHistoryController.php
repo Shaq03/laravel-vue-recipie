@@ -5,9 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\CookingHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Services\AIRecommendationService;
 
 class CookingHistoryController extends Controller
 {
+    private $aiService;
+    public function __construct(AIRecommendationService $aiService)
+    {
+        $this->aiService = $aiService;
+    }
+
     public function index()
     {
         $history = CookingHistory::with('recipe')
@@ -33,6 +40,8 @@ class CookingHistoryController extends Controller
             'notes' => $validated['notes'] ?? null,
             'cooked_at' => now()
         ]);
+
+        $this->aiService->trainModel();
 
         return response()->json($history->load('recipe'), 201);
     }
