@@ -19,6 +19,9 @@ const selectedRecipe = ref(null);
 const showModal = ref(false);
 const mlInsights = ref(null);
 const showMLDetails = ref(false);
+const showRatingModal = ref(false);
+const selectedRating = ref(1);
+const recipeToMark = ref(null);
 
 // Add a computed property for authentication status
 const isAuthenticated = computed(() => store.getters.isAuthenticated);
@@ -335,15 +338,31 @@ const clearIngredients = () => {
   console.log('Cleared ingredients and search results');
 };
 
-const markAsCooked = async (recipe) => {
+const openRatingModal = (recipe) => {
+  recipeToMark.value = recipe;
+  selectedRating.value = 1;
+  showRatingModal.value = true;
+};
+
+const closeRatingModal = () => {
+  showRatingModal.value = false;
+  recipeToMark.value = null;
+};
+
+const submitCookedRating = async () => {
+  if (!recipeToMark.value) return;
+  if (!store.getters.isAuthenticated) {
+    alert('Please log in to mark recipes as cooked.');
+    return;
+  }
   try {
-    const response = await axios.post('/api/v1/cooking-history', {
-      recipe_id: recipe.id,
-      rating: 1,
+    await axios.post('/api/v1/cooking-history', {
+      recipe_id: recipeToMark.value.id,
+      rating: selectedRating.value,
       notes: ''
     });
-    
-    alert('Recipe added to your cooking history! You can now update your rating and add notes in your cooking history page.');
+    alert('Recipe added to your cooking history! You can update your rating and add notes later.');
+    closeRatingModal();
   } catch (err) {
     console.error('Error marking recipe as cooked:', err);
     alert('Failed to add recipe to cooking history. Please try again.');
@@ -614,6 +633,14 @@ onMounted(async () => {
                   <div class="bg-indigo-600 h-1.5 rounded-full" :style="{ width: `${Math.max(0, Math.min(1, ((rec.normalized_score || 0) * 0.6 + (rec.ml_score || 0) * 0.4))) * 100}%` }"></div>
                 </div>
               </div>
+              <div v-if="rec.ml_prediction !== null" class="mt-1 flex items-center">
+                <span v-if="rec.ml_prediction == 1" class="bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded mr-2">ML Match</span>
+                <span v-else class="bg-gray-400 text-white text-xs font-semibold px-2 py-0.5 rounded mr-2">No ML Match</span>
+                <span v-if="rec.ml_confidence !== null" class="ml-2 text-xs text-white">ML Confidence: {{ Math.round(Math.max(0, Math.min(1, rec.ml_confidence)) * 100) }}%</span>
+              </div>
+              <div v-if="rec.ml_confidence !== null" class="w-full bg-green-100 rounded-full h-1 mt-1">
+                <div class="bg-green-500 h-1 rounded-full" :style="{ width: `${Math.max(0, Math.min(1, rec.ml_confidence)) * 100}%` }"></div>
+              </div>
             </div>
             <div class="p-6">
               <h3 class="text-xl font-bold mb-2 text-gray-800">{{ rec.recipe.title }}</h3>
@@ -630,7 +657,7 @@ onMounted(async () => {
               </div>
               <div class="mt-4 flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0">
                 <button
-                  @click.stop="markAsCooked(rec.recipe)"
+                  @click.stop="openRatingModal(rec.recipe)"
                   class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                 >
                   <ChefHat class="w-5 h-5 mr-2" />
@@ -658,6 +685,47 @@ onMounted(async () => {
       </div>
     </div>
     <RecipeDetailModal v-if="showModal" :recipe="selectedRecipe" :onClose="() => { showModal = false; selectedRecipe = null; }" />
+    <div v-if="showRatingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-900">Rate Recipe</h3>
+          <button @click="closeRatingModal" class="text-gray-400 hover:text-gray-500">
+            <X class="w-6 h-6" />
+          </button>
+        </div>
+        <div class="mb-6">
+          <p class="text-gray-600 mb-4">How would you rate this recipe?</p>
+          <div class="flex justify-center space-x-2">
+            <button
+              v-for="rating in 5"
+              :key="rating"
+              @click="selectedRating = rating"
+              class="w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-colors duration-200"
+              :class="{
+                'bg-yellow-400 text-white': selectedRating >= rating,
+                'bg-gray-200 text-gray-600 hover:bg-gray-300': selectedRating < rating
+              }"
+            >
+              {{ rating }}
+            </button>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button
+            @click="closeRatingModal"
+            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Cancel
+          </button>
+          <button
+            @click="submitCookedRating"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Add to History
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

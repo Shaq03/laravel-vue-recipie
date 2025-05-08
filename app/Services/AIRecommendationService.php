@@ -8,6 +8,8 @@ use App\Models\UserPreference;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Collection;
+use Phpml\Classification\SVC;
+use Phpml\SupportVectorMachine\Kernel;
 
 class AIRecommendationService
 {
@@ -491,21 +493,22 @@ class AIRecommendationService
                 'cuisine' => 0
             ];
 
+            $mlModel = null;
+            if (file_exists(storage_path('app/ml_model.serialized'))) {
+                $mlModel = unserialize(file_get_contents(storage_path('app/ml_model.serialized')));
+            }
+
             foreach ($recipes as $recipe) {
                 $features = $this->extractFeatures($recipe);
                 $prediction = $this->calculateMLScore($recipe, $ingredients);
-                
                 if ($prediction === 0) {
                     continue;
                 }
-
                 $ingredientScore = empty($ingredients) ? 1 : $this->calculateIngredientMatchScore($recipe, $ingredients);
-                
                 if (!empty($ingredients) && $ingredientScore <= 0) {
                     $filteredOut['ingredients']++;
                     continue;
                 }
-
                 if (!empty($this->userPreferences['dietary_restrictions'])) {
                     $dietaryScore = $this->calculateDietaryScore($recipe);
                     if ($dietaryScore === 0) {
@@ -513,7 +516,6 @@ class AIRecommendationService
                         continue;
                     }
                 }
-
                 if (!empty($this->userPreferences['cooking_skill_level'])) {
                     $skillLevel = strtolower($this->userPreferences['cooking_skill_level']);
                     $difficulty = strtolower($recipe->difficulty);
@@ -522,14 +524,24 @@ class AIRecommendationService
                         continue;
                     }
                 }
-
                 $aiConfidenceScore = $this->calculateAIConfidenceScore($recipe, $ingredients);
                 $mlScore = $this->calculateMLScore($recipe, $ingredients);
-
+                $ml_prediction = null;
+                $ml_confidence = null;
+                if ($mlModel) {
+                    $mlFeatures = $this->extractFeaturesForML($recipe, $user);
+                    $ml_prediction = $mlModel->predict([$mlFeatures])[0] ?? null;
+                    if (method_exists($mlModel, 'predictProbability')) {
+                        $probs = $mlModel->predictProbability([$mlFeatures]);
+                        $ml_confidence = isset($probs[0][1]) ? $probs[0][1] : null;
+                    }
+                }
                 $recommendations[] = [
                     'recipe' => $recipe,
                     'score' => $ingredientScore,
-                    'normalized_score' => ($aiConfidenceScore * 0.6) + ($mlScore * 0.4)
+                    'normalized_score' => ($aiConfidenceScore * 0.6) + ($mlScore * 0.4),
+                    'ml_prediction' => $ml_prediction,
+                    'ml_confidence' => $ml_confidence
                 ];
             }
 
@@ -759,5 +771,34 @@ class AIRecommendationService
         }
         
         return 'No recipes found that match your criteria. ' . implode('. ', $messages);
+    }
+
+    public function trainModel()
+    {
+        $samples = [];
+        $labels = [];
+        $histories = \App\Models\CookingHistory::with('recipe', 'user')->get();
+        foreach ($histories as $history) {
+            $features = $this->extractFeaturesForML($history->recipe, $history->user);
+            $samples[] = $features;
+            $labels[] = $history->rating >= 4 ? 1 : 0;
+        }
+        $classifier = new SVC(Kernel::LINEAR, 1000);
+        $classifier->train($samples, $labels);
+        file_put_contents(storage_path('app/ml_model.serialized'), serialize($classifier));
+    }
+
+    private function extractFeaturesForML($recipe, $user)
+    {
+        $ingredientCount = is_array($recipe->ingredients) ? count($recipe->ingredients) : count(json_decode($recipe->ingredients, true));
+        $cookingTime = is_numeric($recipe->cooking_time) ? (int)$recipe->cooking_time : (int)preg_replace('/[^0-9]/', '', $recipe->cooking_time);
+        $difficulty = ['easy' => 1, 'medium' => 2, 'hard' => 3][strtolower($recipe->difficulty ?? 'medium')] ?? 2;
+        $userSkill = ['beginner' => 1, 'intermediate' => 2, 'advanced' => 3][strtolower($user->preferences->cooking_skill_level ?? 'beginner')] ?? 1;
+        return [
+            $ingredientCount,
+            $cookingTime,
+            $difficulty,
+            $userSkill
+        ];
     }
 } 
